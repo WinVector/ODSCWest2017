@@ -1,0 +1,355 @@
+<h1 id="overview">Overview</h1>
+<p>You can use <code>sparklyr</code> to fit a wide variety of machine learning algorithms in Apache Spark. This analysis compares the performance of six classification models in Apache Spark on the <a href="https://www.kaggle.com/c/titanic">Titanic</a> data set.</p>
+<p>Compare the following 6 models:</p>
+<ul class="incremental">
+<li>Random forest - <code>ml_random_forest</code></li>
+<li>Decision tree - <code>ml_decision_tree</code></li>
+<li>Gradient boosted trees - <code>ml_gradient_boosted_trees</code></li>
+<li>Logistic regression - <code>ml_logistic_regression</code></li>
+<li>Multilayer perceptron (neural net) - <code>ml_multilayer_perceptron</code></li>
+<li>Naive Bayes - <code>ml_naive_bayes</code></li>
+</ul>
+<h1 id="load-the-data">Load the data</h1>
+<p>Parquet is a column based data format that is also compressed. It is a format often used with Spark. Load the Titanic Parquet data into a local spark cluster.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Connect to local spark cluster and load data</span>
+sc &lt;-<span class="st"> </span><span class="kw">spark_connect</span>(<span class="dt">master =</span> <span class="st">&quot;local&quot;</span>, <span class="dt">version =</span> <span class="st">&quot;2.0.0&quot;</span>)
+<span class="kw">spark_read_parquet</span>(sc, <span class="dt">name =</span> <span class="st">&quot;titanic&quot;</span>, <span class="dt">path =</span> <span class="st">&quot;datainputs/titanic-parquet&quot;</span>)</code></pre></div>
+<pre><code>## # Source:   table&lt;titanic&gt; [?? x 12]
+## # Database: spark_connection
+##    PassengerId Survived Pclass
+##          &lt;int&gt;    &lt;int&gt;  &lt;int&gt;
+##  1           1        0      3
+##  2           2        1      1
+##  3           3        1      3
+##  4           4        1      1
+##  5           5        0      3
+##  6           6        0      3
+##  7           7        0      1
+##  8           8        0      3
+##  9           9        1      3
+## 10          10        1      2
+## # ... with 881 more rows, and 9 more variables: Name &lt;chr&gt;, Sex &lt;chr&gt;,
+## #   Age &lt;dbl&gt;, SibSp &lt;int&gt;, Parch &lt;int&gt;, Ticket &lt;chr&gt;, Fare &lt;dbl&gt;,
+## #   Cabin &lt;chr&gt;, Embarked &lt;chr&gt;</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">titanic_tbl &lt;-<span class="st"> </span><span class="kw">tbl</span>(sc, <span class="st">&quot;titanic&quot;</span>)</code></pre></div>
+<hr />
+<h1 id="tidy-the-data">Tidy the data</h1>
+<p>Tidy the data in preparation for model fitting. <code>sparklyr</code> uses <code>dplyr</code> syntax when connecting to the Spark SQL API and specific functions for connecting to the Spark ML API.</p>
+<h2 id="spark-sql-transforms">Spark SQL transforms</h2>
+<p>Use feature transforms with Spark SQL. Create new features and modify existing features with <code>dplyr</code> syntax.</p>
+<p>Create a new remote table with handle <code>titanic2_tbl</code> from <code>titanic_tbl</code> with additional (or altered) colums:</p>
+<ol class="incremental" style="list-style-type: decimal">
+<li>Family_Size - Family is the sum of spouse/siblings (SibSp), parents (Parch), plus themself</li>
+<li>Pclass - Format passenger class (Pclass) as character not numeric</li>
+<li>Embarked - Remove a small number of missing records</li>
+<li>Age - Impute missing age with average age</li>
+</ol>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Transform features with Spark SQL API</span>
+titanic2_tbl &lt;-<span class="st"> </span>titanic_tbl %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Family_Size =</span> SibSp +<span class="st"> </span>Parch +<span class="st"> </span>1L) %&gt;%<span class="st">  </span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Pclass =</span> <span class="kw">as.character</span>(Pclass)) %&gt;%
+<span class="st">  </span><span class="kw">filter</span>(!<span class="kw">is.na</span>(Embarked)) %&gt;%
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Age =</span> <span class="kw">if_else</span>(<span class="kw">is.na</span>(Age), <span class="kw">mean</span>(Age), Age)) %&gt;%
+<span class="st">  </span><span class="kw">compute</span>()</code></pre></div>
+<h2 id="spark-ml-transforms">Spark ML transforms</h2>
+<p>Use feature transforms with Spark ML. Use <code>ft_bucketizer</code> to bucket family sizes into groups.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Transform family size with Spark ML API</span>
+titanic_final_tbl &lt;-<span class="st"> </span>titanic2_tbl %&gt;%
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Family_Size =</span> <span class="kw">as.numeric</span>(Family_size)) %&gt;%
+<span class="st">  </span><span class="kw">sdf_mutate</span>(
+    <span class="dt">Family_Sizes =</span> <span class="kw">ft_bucketizer</span>(Family_Size, <span class="dt">splits =</span> <span class="kw">c</span>(<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">5</span>,<span class="dv">12</span>))
+    ) %&gt;%
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Family_Sizes =</span> <span class="kw">as.character</span>(<span class="kw">as.integer</span>(Family_Sizes))) %&gt;%
+<span class="st">  </span><span class="kw">compute</span>()</code></pre></div>
+<blockquote>
+<p>Tip: You can use magrittr pipes to chain dplyr commands with sparklyr commands. For example, <code>mutate</code> is a dplyr command that accesses the Spark SQL API whereas <code>sdf_mutate</code> is a sparklyr command that accesses the Spark ML API.</p>
+</blockquote>
+<h2 id="train-validation-split">Train-validation split</h2>
+<p>Randomly partition the data into train and test sets.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Partition the data.</span>
+<span class="co"># The as.numeric() conversions are because Integer and Doubles are not interchangable in Java/Scala</span>
+partition &lt;-<span class="st"> </span>titanic_final_tbl %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Survived =</span> <span class="kw">as.numeric</span>(Survived), <span class="dt">SibSp =</span> <span class="kw">as.numeric</span>(SibSp), <span class="dt">Parch =</span> <span class="kw">as.numeric</span>(Parch)) %&gt;%
+<span class="st">  </span><span class="kw">select</span>(Survived, Pclass, Sex, Age, SibSp, Parch, Fare, Embarked, Family_Sizes) %&gt;%
+<span class="st">  </span><span class="kw">sdf_partition</span>(<span class="dt">train =</span> <span class="fl">0.75</span>, <span class="dt">test =</span> <span class="fl">0.25</span>, <span class="dt">seed =</span> <span class="dv">8585</span>)
+
+<span class="co"># Create table references</span>
+train_tbl &lt;-<span class="st"> </span>partition$train
+test_tbl &lt;-<span class="st"> </span>partition$test</code></pre></div>
+<blockquote>
+<p>Tip: Use <code>sdf_partition</code> to create training and testing splits.</p>
+</blockquote>
+<hr />
+<h1 id="train-the-models">Train the models</h1>
+<p>Train multiple machine learning algorithms on the training data. Score the test data with the fitted models.</p>
+<h2 id="logistic-regression">Logistic regression</h2>
+<p>Logistic regression is one of the most common classifiers. Train the logistic regression and examine the predictors.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Model survival as a function of several predictors</span>
+ml_formula &lt;-<span class="st"> </span><span class="kw">formula</span>(Survived ~<span class="st"> </span>Pclass +<span class="st"> </span>Sex +<span class="st"> </span>Age +<span class="st"> </span>SibSp +<span class="st"> </span>Parch +<span class="st"> </span>Fare +<span class="st"> </span>Embarked +<span class="st"> </span>Family_Sizes)
+
+<span class="co"># Train a logistic regression model</span>
+(ml_log &lt;-<span class="st"> </span><span class="kw">ml_logistic_regression</span>(train_tbl, ml_formula))</code></pre></div>
+<pre><code>## * No rows dropped by &#39;na.omit&#39; call
+
+## Call: Survived ~ Pclass_2 + Pclass_3 + Sex_male + Age + SibSp + Parch + Fare + Embarked_Q + Embarked_S + Family_Sizes_1 + Family_Sizes_2
+## 
+## Coefficients:
+##    (Intercept)       Pclass_2       Pclass_3       Sex_male            Age 
+##    3.770024202   -1.001174014   -2.077589828   -2.674074995   -0.041217932 
+##          SibSp          Parch           Fare     Embarked_Q     Embarked_S 
+##   -0.056016163    0.162832732    0.000293634    0.363901651   -0.101122063 
+## Family_Sizes_1 Family_Sizes_2 
+##    0.141765426   -1.826757360</code></pre>
+<h2 id="other-ml-algorithms">Other ML algorithms</h2>
+<p>Run the same formula using the other machine learning algorithms. Notice that training times vary greatly between methods.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## Decision Tree
+ml_dt &lt;-<span class="st"> </span><span class="kw">ml_decision_tree</span>(train_tbl, ml_formula)</code></pre></div>
+<pre><code>## * No rows dropped by &#39;na.omit&#39; call</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## Random Forest
+ml_rf &lt;-<span class="st"> </span><span class="kw">ml_random_forest</span>(train_tbl, ml_formula)</code></pre></div>
+<pre><code>## * No rows dropped by &#39;na.omit&#39; call</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## Gradient Boosted Trees
+ml_gbt &lt;-<span class="st"> </span><span class="kw">ml_gradient_boosted_trees</span>(train_tbl, ml_formula)</code></pre></div>
+<pre><code>## * No rows dropped by &#39;na.omit&#39; call</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## Naive Bayes
+ml_nb &lt;-<span class="st"> </span><span class="kw">ml_naive_bayes</span>(train_tbl, ml_formula)</code></pre></div>
+<pre><code>## * No rows dropped by &#39;na.omit&#39; call</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## Neural Network
+ml_nn &lt;-<span class="st"> </span><span class="kw">ml_multilayer_perceptron</span>(train_tbl, ml_formula, <span class="dt">layers =</span> <span class="kw">c</span>(<span class="dv">11</span>,<span class="dv">15</span>,<span class="dv">2</span>))</code></pre></div>
+<pre><code>## * No rows dropped by &#39;na.omit&#39; call</code></pre>
+<h2 id="validation-data">Validation data</h2>
+<p>Score the test data with the trained models.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Bundle the modelss into a single list object</span>
+ml_models &lt;-<span class="st"> </span><span class="kw">list</span>(
+  <span class="st">&quot;Logistic&quot;</span> =<span class="st"> </span>ml_log,
+  <span class="st">&quot;Decision Tree&quot;</span> =<span class="st"> </span>ml_dt,
+  <span class="st">&quot;Random Forest&quot;</span> =<span class="st"> </span>ml_rf,
+  <span class="st">&quot;Gradient Boosted Trees&quot;</span> =<span class="st"> </span>ml_gbt,
+  <span class="st">&quot;Naive Bayes&quot;</span> =<span class="st"> </span>ml_nb,
+  <span class="st">&quot;Neural Net&quot;</span> =<span class="st"> </span>ml_nn
+)
+
+<span class="co"># Create a function for scoring</span>
+score_test_data &lt;-<span class="st"> </span>function(model, <span class="dt">data=</span>test_tbl){
+  pred &lt;-<span class="st"> </span><span class="kw">sdf_predict</span>(model, data)
+  <span class="kw">select</span>(pred, Survived, prediction)
+}
+
+<span class="co"># Score all the models</span>
+ml_score &lt;-<span class="st"> </span><span class="kw">lapply</span>(ml_models, score_test_data)</code></pre></div>
+<hr />
+<h1 id="compare-results">Compare results</h1>
+<p>Compare the model results. Examine performance metrics: lift, AUC, and accuracy. Also examine feature importance to see what features are most predictive of survival.</p>
+<h2 id="model-lift">Model lift</h2>
+<p>Lift compares how well the model predicts survival compared to random guessing. Use the function below to estimate model lift for each scored decile in the test data. The lift chart suggests that the tree models (random forest, gradient boosted trees, or the decision tree) will provide the best prediction.</p>
+<p>For more information see the discussion on the <em>gain curve</em> in the section &quot;Evaluating the Model&quot; of <a href="http://www.win-vector.com/blog/2015/07/working-with-sessionized-data-1-evaluating-hazard-models/">this post</a>.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">nbins =<span class="st"> </span><span class="dv">20</span>
+
+<span class="co"># Lift_function</span>
+calculate_lift =<span class="st"> </span>function(scored_data, <span class="dt">numbins=</span>nbins) {
+ scored_data %&gt;%
+<span class="st">    </span><span class="kw">mutate</span>(<span class="dt">bin =</span> <span class="kw">ntile</span>(<span class="kw">desc</span>(prediction), numbins)) %&gt;%<span class="st"> </span>
+<span class="st">    </span><span class="kw">group_by</span>(bin) %&gt;%<span class="st"> </span>
+<span class="st">    </span><span class="kw">summarize</span>(<span class="dt">ncaptured =</span> <span class="kw">sum</span>(Survived),
+              <span class="dt">ndata =</span> <span class="kw">n</span>())  %&gt;%<span class="st"> </span>
+<span class="st">    </span><span class="kw">arrange</span>(bin) %&gt;%<span class="st"> </span>
+<span class="st">    </span><span class="kw">mutate</span>(<span class="dt">cumulative_data_fraction=</span><span class="kw">cumsum</span>(ndata)/<span class="kw">sum</span>(ndata),
+           <span class="dt">cumulative_capture_rate=</span><span class="kw">cumsum</span>(ncaptured)/<span class="kw">sum</span>(ncaptured))  %&gt;%<span class="st"> </span>
+<span class="st">    </span><span class="kw">select</span>(cumulative_data_fraction, cumulative_capture_rate) %&gt;%<span class="st"> </span>
+<span class="st">    </span><span class="kw">collect</span>() %&gt;%<span class="st"> </span>
+<span class="st">    </span><span class="kw">as.data.frame</span>()
+}
+
+<span class="co"># Initialize results</span>
+ml_gains &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">cumulative_data_fraction =</span> <span class="kw">seq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dt">len=</span>nbins),
+                       <span class="dt">cumulative_capture_rate=</span><span class="kw">seq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dt">len=</span>nbins),
+                       <span class="dt">model=</span><span class="st">&quot;Random Guess&quot;</span>)
+
+<span class="co"># Calculate lift</span>
+for(i in <span class="kw">names</span>(ml_score)){
+  ml_gains &lt;-<span class="st"> </span>ml_score[[i]] %&gt;%
+<span class="st">    </span>calculate_lift %&gt;%
+<span class="st">    </span><span class="kw">mutate</span>(<span class="dt">model =</span> i) %&gt;%
+<span class="st">    </span><span class="kw">rbind</span>(ml_gains, .)
+}
+
+<span class="co"># Plot results</span>
+<span class="co"># Note that logistic regression, Naive Bayes and Neural net are all returning HARD classification, </span>
+<span class="co"># NOT probability scores. The probabilities are there for (at least) logistic, but not easily </span>
+<span class="co"># manipulable through sparklyr (this will improve with https://github.com/rstudio/sparklyr/issues/648 ).</span>
+<span class="kw">ggplot</span>(ml_gains, <span class="kw">aes</span>(<span class="dt">x =</span> cumulative_data_fraction, <span class="dt">y =</span> cumulative_capture_rate, <span class="dt">colour =</span> model)) +
+<span class="st">  </span><span class="kw">geom_point</span>() +<span class="st"> </span><span class="kw">geom_line</span>() +
+<span class="st">  </span><span class="kw">ggtitle</span>(<span class="st">&quot;Lift Chart for Predicting Survival - Test Data Set&quot;</span>) </code></pre></div>
+<div class="figure">
+<img src="04a-Spark-ML_files/figure-markdown_github/lift-1.png" alt="" />
+
+</div>
+<blockquote>
+<p>Tip: <code>dplyr</code> and <code>sparklyr</code> both support windows functions, including <code>ntiles</code> and <code>cumsum</code>.</p>
+</blockquote>
+<p>Suppose we want the lift curve for logistic regression, based on <em>probabilities</em>, not hard class prediction. One way to do this is to bring a sample of the data over to R and plot the lift (we will used WVPlots::GainCurvePlot).</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># get the probabilities from sdf_predict()</span>
+ml_logistic &lt;-<span class="st"> </span><span class="kw">sdf_predict</span>(ml_models[[<span class="st">&quot;Logistic&quot;</span>]], test_tbl) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">select</span>(Survived, prediction, probability)
+
+<span class="co"># Survived is true outcome; prediction is the hard class prediction</span>
+<span class="co"># probability is a list of Prob(class 0), Prob(class 1)</span>
+ml_logistic</code></pre></div>
+<pre><code>## # Source:   lazy query [?? x 3]
+## # Database: spark_connection
+##    Survived prediction probability
+##       &lt;dbl&gt;      &lt;dbl&gt;      &lt;list&gt;
+##  1        0          1   &lt;dbl [2]&gt;
+##  2        0          0   &lt;dbl [2]&gt;
+##  3        0          0   &lt;dbl [2]&gt;
+##  4        0          0   &lt;dbl [2]&gt;
+##  5        0          0   &lt;dbl [2]&gt;
+##  6        0          0   &lt;dbl [2]&gt;
+##  7        0          0   &lt;dbl [2]&gt;
+##  8        0          0   &lt;dbl [2]&gt;
+##  9        0          0   &lt;dbl [2]&gt;
+## 10        0          0   &lt;dbl [2]&gt;
+## # ... with 209 more rows</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Let&#39;s take a &quot;sample&quot; of ml_logistic to bring over. This data happens to</span>
+<span class="co"># be small, so we&#39;ll take the whole thing, but in real-world situations you</span>
+<span class="co"># would of course use a fraction &lt; 1</span>
+fraction =<span class="st"> </span><span class="dv">1</span>
+ml_logistic_sample =<span class="st"> </span><span class="kw">sdf_sample</span>(ml_logistic, fraction, <span class="dt">replacement=</span><span class="ot">FALSE</span>) %&gt;%
+<span class="st">  </span><span class="kw">collect</span>()  <span class="co"># collect() brings the data to local R</span>
+
+<span class="co"># add a column -- the probability of class 1 (survived)</span>
+ml_logistic_sample$score =<span class="st"> </span><span class="kw">vapply</span>(ml_logistic_sample$probability, 
+                                  function(ri) { ri[[<span class="dv">2</span>]] }, <span class="kw">numeric</span>(<span class="dv">1</span>))
+
+WVPlots::<span class="kw">GainCurvePlot</span>(ml_logistic_sample, 
+                             <span class="st">&quot;score&quot;</span>, <span class="st">&quot;Survived&quot;</span>, 
+                             <span class="st">&quot;Gain Curve Plot, logistic model&quot;</span>)</code></pre></div>
+<div class="figure">
+<img src="04a-Spark-ML_files/figure-markdown_github/locallift-1.png" alt="" />
+
+</div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">WVPlots::<span class="kw">ROCPlot</span>(ml_logistic_sample, 
+                             <span class="st">&quot;score&quot;</span>, <span class="st">&quot;Survived&quot;</span>, <span class="dv">1</span>,
+                             <span class="st">&quot;ROC Plot, logistic model&quot;</span>)</code></pre></div>
+<div class="figure">
+<img src="04a-Spark-ML_files/figure-markdown_github/locallift-2.png" alt="" />
+
+</div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># if on dev version of WVPlots</span>
+rocFrame &lt;-<span class="st"> </span>WVPlots::<span class="kw">graphROC</span>(ml_logistic_sample$score, 
+                              ml_logistic_sample$Survived==<span class="dv">1</span>)
+<span class="kw">plot_ly</span>(rocFrame$pointGraph, <span class="dt">x =</span> ~FalsePositiveRate, <span class="dt">y =</span> ~TruePositiveRate, 
+        <span class="dt">type=</span><span class="st">&#39;scatter&#39;</span>, <span class="dt">mode=</span><span class="st">&#39;markers&#39;</span>, <span class="dt">hoverinfo=</span> <span class="st">&#39;text&#39;</span>, 
+        <span class="dt">text=</span> ~<span class="st"> </span><span class="kw">paste</span>(<span class="st">&#39;threshold:&#39;</span>, model, 
+                      <span class="st">&#39;&lt;/br&gt;FalsePositiveRate:&#39;</span>, FalsePositiveRate,
+                      <span class="st">&#39;&lt;/br&gt;TruePositiveRate:&#39;</span>, TruePositiveRate))</code></pre></div>
+<div class="figure">
+<img src="04a-Spark-ML_files/figure-markdown_github/locallift-3.png" alt="" />
+
+</div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># compare this graph (not the previous ones) to balanced accuracy</span>
+<span class="co"># http://www.win-vector.com/blog/2016/07/a-budget-of-classifier-evaluation-measures/</span>
+ml_logistic_sample &lt;-<span class="st"> </span>ml_logistic_sample %&gt;%<span class="st"> </span><span class="kw">mutate</span>(<span class="dt">qscore =</span> <span class="kw">ifelse</span>(score&gt;<span class="fl">0.5</span>, <span class="fl">1.0</span>, <span class="fl">0.0</span>))
+WVPlots::<span class="kw">ROCPlot</span>(ml_logistic_sample, 
+                             <span class="st">&quot;qscore&quot;</span>, <span class="st">&quot;Survived&quot;</span>, <span class="dv">1</span>,
+                             <span class="st">&quot;ROC Plot, logistic decision&quot;</span>)</code></pre></div>
+<div class="figure">
+<img src="04a-Spark-ML_files/figure-markdown_github/locallift-4.png" alt="" />
+
+</div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># As long as we have it, let&#39;s call caret on the local score data.</span>
+tab =<span class="st"> </span><span class="kw">table</span>(<span class="dt">pred =</span> <span class="kw">as.character</span>(ml_logistic_sample$prediction==<span class="dv">1</span>), 
+            <span class="dt">lbsurvived =</span> <span class="kw">as.character</span>(ml_logistic_sample$Survived==<span class="dv">1</span>))
+<span class="kw">print</span>(tab)</code></pre></div>
+<pre><code>##        lbsurvived
+## pred    FALSE TRUE
+##   FALSE   125   23
+##   TRUE     14   57</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># this only works if the package e1071 is loaded</span>
+caret::<span class="kw">confusionMatrix</span>(tab,
+            <span class="dt">positive=</span> <span class="st">&#39;TRUE&#39;</span>)</code></pre></div>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##        lbsurvived
+## pred    FALSE TRUE
+##   FALSE   125   23
+##   TRUE     14   57
+##                                           
+##                Accuracy : 0.8311          
+##                  95% CI : (0.7747, 0.8782)
+##     No Information Rate : 0.6347          
+##     P-Value [Acc &gt; NIR] : 1.339e-10       
+##                                           
+##                   Kappa : 0.6267          
+##  Mcnemar&#39;s Test P-Value : 0.1884          
+##                                           
+##             Sensitivity : 0.7125          
+##             Specificity : 0.8993          
+##          Pos Pred Value : 0.8028          
+##          Neg Pred Value : 0.8446          
+##              Prevalence : 0.3653          
+##          Detection Rate : 0.2603          
+##    Detection Prevalence : 0.3242          
+##       Balanced Accuracy : 0.8059          
+##                                           
+##        &#39;Positive&#39; Class : TRUE            
+## </code></pre>
+<h2 id="auc-and-accuracy">AUC and accuracy</h2>
+<p>Though ROC curves are not available, Spark ML does have support for Area Under the ROC curve. This metric captures performance for specific cut-off values. The higher the AUC the better.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Function for calculating accuracy</span>
+calc_accuracy &lt;-<span class="st"> </span>function(data, <span class="dt">cutpoint =</span> <span class="fl">0.5</span>){
+  data %&gt;%<span class="st"> </span>
+<span class="st">    </span><span class="kw">mutate</span>(<span class="dt">prediction =</span> <span class="kw">if_else</span>(prediction &gt;<span class="st"> </span>cutpoint, <span class="fl">1.0</span>, <span class="fl">0.0</span>)) %&gt;%
+<span class="st">    </span><span class="kw">ml_classification_eval</span>(<span class="st">&quot;prediction&quot;</span>, <span class="st">&quot;Survived&quot;</span>, <span class="st">&quot;accuracy&quot;</span>)
+}
+
+<span class="co"># Calculate AUC and accuracy</span>
+perf_metrics &lt;-<span class="st"> </span><span class="kw">data.frame</span>(
+  <span class="dt">model =</span> <span class="kw">names</span>(ml_score),
+  <span class="dt">AUC =</span> <span class="kw">sapply</span>(ml_score, ml_binary_classification_eval, <span class="st">&quot;Survived&quot;</span>, <span class="st">&quot;prediction&quot;</span>),
+  <span class="dt">Accuracy =</span> <span class="kw">sapply</span>(ml_score, calc_accuracy),
+  <span class="dt">row.names =</span> <span class="ot">NULL</span>, <span class="dt">stringsAsFactors =</span> <span class="ot">FALSE</span>)
+
+<span class="co"># Plot results</span>
+<span class="kw">gather</span>(perf_metrics, metric, value, AUC, Accuracy) %&gt;%
+<span class="st">  </span><span class="kw">ggplot</span>(<span class="kw">aes</span>(<span class="kw">reorder</span>(model, value, <span class="dt">FUN=</span>mean), value)) +<span class="st"> </span>
+<span class="st">  </span><span class="kw">geom_pointrange</span>(<span class="kw">aes</span>(<span class="dt">ymin=</span><span class="dv">0</span>, <span class="dt">ymax=</span>value)) +<span class="st"> </span>
+<span class="st">  </span><span class="kw">facet_wrap</span>(~metric, <span class="dt">ncol=</span><span class="dv">1</span>, <span class="dt">scale=</span><span class="st">&quot;free_x&quot;</span>) +<span class="st"> </span>
+<span class="st">  </span><span class="kw">xlab</span>(<span class="st">&quot;Model&quot;</span>) +
+<span class="st">  </span><span class="kw">ylab</span>(<span class="st">&quot;Score&quot;</span>) +
+<span class="st">  </span><span class="kw">ggtitle</span>(<span class="st">&quot;Performance Metrics (Larger is better)&quot;</span>)  +
+<span class="st">  </span><span class="kw">coord_flip</span>(<span class="dt">ylim=</span><span class="kw">c</span>(<span class="dv">0</span>,<span class="dv">1</span>))</code></pre></div>
+<div class="figure">
+<img src="04a-Spark-ML_files/figure-markdown_github/auc-1.png" alt="" />
+
+</div>
+<h2 id="feature-importance">Feature importance</h2>
+<p>It is also interesting to compare the features that were identified by each model as being important predictors for survival. The logistic regression and tree models implement feature importance metrics. Sex, fare, and age are some of the most important features.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Initialize results</span>
+feature_importance &lt;-<span class="st"> </span><span class="kw">data.frame</span>()
+
+<span class="co"># Calculate feature importance</span>
+for(i in <span class="kw">c</span>(<span class="st">&quot;Decision Tree&quot;</span>, <span class="st">&quot;Random Forest&quot;</span>, <span class="st">&quot;Gradient Boosted Trees&quot;</span>)){
+  feature_importance &lt;-<span class="st"> </span><span class="kw">ml_tree_feature_importance</span>(sc, ml_models[[i]]) %&gt;%
+<span class="st">    </span><span class="kw">mutate</span>(<span class="dt">Model =</span> i) %&gt;%
+<span class="st">    </span><span class="kw">mutate</span>(<span class="dt">importance =</span> <span class="kw">as.numeric</span>(<span class="kw">levels</span>(importance))[importance]) %&gt;%
+<span class="st">    </span><span class="kw">mutate</span>(<span class="dt">feature =</span> <span class="kw">as.character</span>(feature)) %&gt;%
+<span class="st">    </span><span class="kw">rbind</span>(feature_importance, .)
+}
+
+<span class="co"># Plot results</span>
+feature_importance %&gt;%
+<span class="st">  </span><span class="kw">ggplot</span>(<span class="kw">aes</span>(<span class="kw">reorder</span>(feature, importance), importance)) +<span class="st"> </span>
+<span class="st">  </span><span class="kw">facet_wrap</span>(~Model) +
+<span class="st">  </span><span class="kw">geom_pointrange</span>(<span class="kw">aes</span>(<span class="dt">ymin=</span><span class="dv">0</span>, <span class="dt">ymax=</span>importance)) +<span class="st"> </span>
+<span class="st">  </span><span class="kw">coord_flip</span>() +
+<span class="st">  </span><span class="kw">xlab</span>(<span class="st">&quot;&quot;</span>) +
+<span class="st">  </span><span class="kw">ggtitle</span>(<span class="st">&quot;Feature Importance&quot;</span>)</code></pre></div>
+<div class="figure">
+<img src="04a-Spark-ML_files/figure-markdown_github/importance-1.png" alt="" />
+
+</div>
+<hr />
+<h1 id="discuss">Discuss</h1>
+<p>You can use <code>sparklyr</code> to run a variety of classifiers in Apache Spark. For the Titanic data, the best performing models were tree based models. Gradient boosted trees was one of the best models, but also had a much longer average run time than the other models. Random forests and decision trees both had good performance and fast run times.</p>
+<p>While these models were run on a tiny data set in a local spark cluster, these methods will scale for analysis on data in a distributed Apache Spark cluster.</p>

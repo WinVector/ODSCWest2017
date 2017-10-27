@@ -1,0 +1,251 @@
+<h2 id="flights-data">Flights Data</h2>
+<p>This guide will demonstrate some of the basic data manipulation verbs of dplyr by using data from the <code>nycflights13</code> R package. This package contains data for all 336,776 flights departing New York City in 2013. It also includes useful metadata on airlines, airports, weather, and planes. The data comes from the US <a href="http://www.transtats.bts.gov/DatabaseInfo.asp?DB_ID=120&amp;Link=0">Bureau of Transportation Statistics</a>, and is documented in <code>?nycflights13</code></p>
+<h3 id="connect-and-load-data">Connect and load data</h3>
+<p>Run the following block to connect to the cluster and copy the flights data using the <code>copy_to</code> function.</p>
+<p><strong>Caveat:</strong> The flight data in <code>nycflights13</code> is convenient for dplyr demonstrations because it is small, but in practice large data should rarely be copied directly from R objects.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">sc &lt;-<span class="st"> </span><span class="kw">spark_connect</span>(<span class="dt">master =</span> <span class="st">&quot;local&quot;</span>, <span class="dt">version =</span> <span class="st">&quot;2.0.0&quot;</span>, <span class="dt">hadoop_version=</span><span class="st">&quot;2.7&quot;</span>)
+flights_tbl &lt;-<span class="st"> </span><span class="kw">spark_read_parquet</span>(sc, <span class="st">&quot;flights&quot;</span>, <span class="st">&quot;datainputs/nycflights13-parquet/flights&quot;</span>)
+airlines_tbl &lt;-<span class="st"> </span><span class="kw">copy_to</span>(sc, airlines, <span class="st">&quot;airlines&quot;</span>, <span class="dt">overwrite =</span> <span class="ot">TRUE</span>)
+
+<span class="kw">src_tbls</span>(sc)</code></pre></div>
+<pre><code>## [1] &quot;airlines&quot; &quot;flights&quot;</code></pre>
+<h3 id="dplyr-verbs">dplyr Verbs</h3>
+<p>Verbs are dplyr commands for manipulating data. When connected to a Spark DataFrame, dplyr translates the commands into Spark SQL statements. Remote data sources use exactly the same five verbs as local data sources. Here are the five verbs with their corresponding SQL commands:</p>
+<ul class="incremental">
+<li><code>select</code> ~ <code>SELECT</code></li>
+<li><code>filter</code> ~ <code>WHERE</code></li>
+<li><code>arrange</code> ~ <code>ORDER</code></li>
+<li><code>summarise</code> ~ <code>aggregators: sum, min, sd, etc.</code></li>
+<li><code>mutate</code> ~ <code>operators: +, *, log, etc.</code></li>
+</ul>
+<p>Run the following block to see what all these commands do in Spark.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">select</span>(flights_tbl, year:day, arr_delay, dep_delay)</code></pre></div>
+<pre><code>## Source:   query [3.368e+05 x 5]
+## Database: spark connection master=local[4] app=sparklyr local=TRUE
+## 
+##     year month   day arr_delay dep_delay
+##    &lt;int&gt; &lt;int&gt; &lt;int&gt;     &lt;dbl&gt;     &lt;dbl&gt;
+## 1   2013     4    26       -32       -10
+## 2   2013     4    26        19        21
+## 3   2013     4    26       -52        -7
+## 4   2013     4    26        -2        -4
+## 5   2013     4    26        -2        10
+## 6   2013     4    26        38        14
+## 7   2013     4    26        33        11
+## 8   2013     4    26        72        44
+## 9   2013     4    26       -18        -5
+## 10  2013     4    26         2        -4
+## # ... with 3.368e+05 more rows</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">filter</span>(flights_tbl, dep_delay &gt;<span class="st"> </span><span class="dv">1000</span>)</code></pre></div>
+<pre><code>## Source:   query [5 x 19]
+## Database: spark connection master=local[4] app=sparklyr local=TRUE
+## 
+##    year month   day dep_time sched_dep_time dep_delay arr_time
+##   &lt;int&gt; &lt;int&gt; &lt;int&gt;    &lt;int&gt;          &lt;int&gt;     &lt;dbl&gt;    &lt;int&gt;
+## 1  2013     6    15     1432           1935      1137     1607
+## 2  2013     7    22      845           1600      1005     1044
+## 3  2013     1     9      641            900      1301     1242
+## 4  2013     1    10     1121           1635      1126     1239
+## 5  2013     9    20     1139           1845      1014     1457
+## # ... with 12 more variables: sched_arr_time &lt;int&gt;, arr_delay &lt;dbl&gt;,
+## #   carrier &lt;chr&gt;, flight &lt;int&gt;, tailnum &lt;chr&gt;, origin &lt;chr&gt;, dest &lt;chr&gt;,
+## #   air_time &lt;dbl&gt;, distance &lt;dbl&gt;, hour &lt;dbl&gt;, minute &lt;dbl&gt;,
+## #   time_hour &lt;dbl&gt;</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">arrange</span>(flights_tbl, <span class="kw">desc</span>(dep_delay))</code></pre></div>
+<pre><code>## Source:   query [3.368e+05 x 19]
+## Database: spark connection master=local[4] app=sparklyr local=TRUE
+## 
+##     year month   day dep_time sched_dep_time dep_delay arr_time
+##    &lt;int&gt; &lt;int&gt; &lt;int&gt;    &lt;int&gt;          &lt;int&gt;     &lt;dbl&gt;    &lt;int&gt;
+## 1   2013     1     9      641            900      1301     1242
+## 2   2013     6    15     1432           1935      1137     1607
+## 3   2013     1    10     1121           1635      1126     1239
+## 4   2013     9    20     1139           1845      1014     1457
+## 5   2013     7    22      845           1600      1005     1044
+## 6   2013     4    10     1100           1900       960     1342
+## 7   2013     3    17     2321            810       911      135
+## 8   2013     6    27      959           1900       899     1236
+## 9   2013     7    22     2257            759       898      121
+## 10  2013    12     5      756           1700       896     1058
+## # ... with 3.368e+05 more rows, and 12 more variables:
+## #   sched_arr_time &lt;int&gt;, arr_delay &lt;dbl&gt;, carrier &lt;chr&gt;, flight &lt;int&gt;,
+## #   tailnum &lt;chr&gt;, origin &lt;chr&gt;, dest &lt;chr&gt;, air_time &lt;dbl&gt;,
+## #   distance &lt;dbl&gt;, hour &lt;dbl&gt;, minute &lt;dbl&gt;, time_hour &lt;dbl&gt;</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summarise</span>(flights_tbl, <span class="dt">mean_dep_delay =</span> <span class="kw">mean</span>(dep_delay))</code></pre></div>
+<pre><code>## Source:   query [1 x 1]
+## Database: spark connection master=local[4] app=sparklyr local=TRUE
+## 
+##   mean_dep_delay
+##            &lt;dbl&gt;
+## 1       12.63907</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">mutate</span>(flights_tbl, <span class="dt">speed =</span> distance /<span class="st"> </span>air_time *<span class="st"> </span><span class="dv">60</span>)</code></pre></div>
+<pre><code>## Source:   query [3.368e+05 x 20]
+## Database: spark connection master=local[4] app=sparklyr local=TRUE
+## 
+##     year month   day dep_time sched_dep_time dep_delay arr_time
+##    &lt;int&gt; &lt;int&gt; &lt;int&gt;    &lt;int&gt;          &lt;int&gt;     &lt;dbl&gt;    &lt;int&gt;
+## 1   2013     4    26     1420           1430       -10     1557
+## 2   2013     4    26     1420           1359        21     1613
+## 3   2013     4    26     1423           1430        -7     1753
+## 4   2013     4    26     1425           1429        -4     1741
+## 5   2013     4    26     1425           1415        10     1525
+## 6   2013     4    26     1426           1412        14     1713
+## 7   2013     4    26     1426           1415        11     1628
+## 8   2013     4    26     1429           1345        44     1617
+## 9   2013     4    26     1430           1435        -5     1553
+## 10  2013     4    26     1431           1435        -4     1646
+## # ... with 3.368e+05 more rows, and 13 more variables:
+## #   sched_arr_time &lt;int&gt;, arr_delay &lt;dbl&gt;, carrier &lt;chr&gt;, flight &lt;int&gt;,
+## #   tailnum &lt;chr&gt;, origin &lt;chr&gt;, dest &lt;chr&gt;, air_time &lt;dbl&gt;,
+## #   distance &lt;dbl&gt;, hour &lt;dbl&gt;, minute &lt;dbl&gt;, time_hour &lt;dbl&gt;, speed &lt;dbl&gt;</code></pre>
+<h3 id="preprocess">Preprocess</h3>
+<p>Use filter, select, arrange, and mutate to subset the flights data.</p>
+<p>Fill in the ??? in the pipe below to get the departure delay, air time (in hours) and distance of all flights from the carriers United (UA), Southwest (WN), American (AA) and Delta (DL) on May 17. Arrange the results by carrier. Note that the air time as reported in column <code>air_time</code> is in minutes.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">c4  &lt;-<span class="st"> </span>flights_tbl %&gt;%
+<span class="st">  </span><span class="kw">filter</span>(month ==<span class="st"> </span><span class="dv">5</span>, day ==<span class="st"> </span><span class="dv">17</span>, carrier %in%<span class="st"> </span><span class="kw">c</span>(<span class="st">&#39;UA&#39;</span>, <span class="st">&#39;WN&#39;</span>, <span class="st">&#39;AA&#39;</span>, <span class="st">&#39;DL&#39;</span>)) %&gt;%
+<span class="st">  </span><span class="kw">select</span>(carrier, dep_delay, air_time, distance) %&gt;%
+<span class="st">  </span><span class="kw">arrange</span>(carrier) %&gt;%
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">air_time_hours =</span> air_time /<span class="st"> </span><span class="dv">60</span>) %&gt;%
+<span class="st">  </span><span class="kw">compute</span>()  <span class="co"># this last command forces the computation and saves the result in the remote store</span></code></pre></div>
+<h3 id="grouping">Grouping</h3>
+<p>Used alone, the <code>group_by</code> function corresponds to the <code>GROUP BY</code> statement in SQL.</p>
+<p>Fill in the ??? to count the number of flights and the mean departure delay by carrier. Hint: the dplyr aggregation function <code>n()</code> counts rows and respects groups.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">c4 %&gt;%
+<span class="st">  </span><span class="kw">group_by</span>(carrier) %&gt;%
+<span class="st">  </span><span class="kw">summarize</span>(<span class="dt">count =</span> <span class="kw">n</span>(), <span class="dt">mean_dep_delay =</span> <span class="kw">mean</span>(dep_delay)) </code></pre></div>
+<pre><code>## Source:   query [4 x 3]
+## Database: spark connection master=local[4] app=sparklyr local=TRUE
+## 
+##   carrier count mean_dep_delay
+##     &lt;chr&gt; &lt;dbl&gt;          &lt;dbl&gt;
+## 1      AA    94       1.468085
+## 2      DL   136       6.235294
+## 3      UA   172       9.633721
+## 4      WN    34       7.970588</code></pre>
+<h3 id="collecting-to-r-example-use">Collecting to R : Example use</h3>
+<p>You can copy data from Spark into R's memory by using <code>collect()</code>. <code>collect()</code> executes the Spark query and returns the results to R for further analysis and visualization.</p>
+<p>Run this block to see an example. Notice <code>carrierhours</code> is a local tbl.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">carrierhours &lt;-<span class="st"> </span><span class="kw">collect</span>(c4)
+
+<span class="co"># Test the significance of pairwise differences and plot the results</span>
+<span class="kw">with</span>(carrierhours, <span class="kw">pairwise.t.test</span>(air_time, carrier))</code></pre></div>
+<pre><code>## 
+##  Pairwise comparisons using t tests with pooled SD 
+## 
+## data:  air_time and carrier 
+## 
+##    AA      DL      UA     
+## DL 0.25057 -       -      
+## UA 0.07957 0.00044 -      
+## WN 0.07957 0.23488 0.00041
+## 
+## P value adjustment method: holm</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">ggplot</span>(carrierhours, <span class="kw">aes</span>(carrier, air_time_hours)) +<span class="st"> </span><span class="kw">geom_boxplot</span>()</code></pre></div>
+<div class="figure">
+<img src="03a-Spark-SQL_files/figure-markdown_github/unnamed-chunk-5-1.png" alt="" />
+
+</div>
+<h3 id="spark-window-functions">Spark Window Functions</h3>
+<p>dplyr implements grouped operations using Spark SQL window functions. You can compare the dplyr syntax to the query it has generated by using <code>show_query()</code> (note: this is very related to <code>sql_render()</code>).</p>
+<p>Both the below commands use window functions, indicated by the word <code>PARTITION</code> in the SQL. Find out which dplyr step needs window functions, by running of the pipe and looking at the SQL.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Find the most and least delayed flight each day</span>
+bestworst &lt;-<span class="st"> </span>flights_tbl %&gt;%
+<span class="st">  </span><span class="kw">group_by</span>(year, month, day) %&gt;%
+<span class="st">  </span><span class="kw">select</span>(dep_delay) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">filter</span>(dep_delay ==<span class="st"> </span><span class="kw">min</span>(dep_delay) ||<span class="st"> </span>dep_delay ==<span class="st"> </span><span class="kw">max</span>(dep_delay))
+<span class="kw">show_query</span>(bestworst)
+## &lt;SQL&gt;
+## SELECT `year`, `month`, `day`, `dep_delay`
+## FROM (SELECT `year`, `month`, `day`, `dep_delay`, min(`dep_delay`) OVER (PARTITION BY `year`, `month`, `day`) AS `zzz4`, max(`dep_delay`) OVER (PARTITION BY `year`, `month`, `day`) AS `zzz5`
+## FROM (SELECT `year` AS `year`, `month` AS `month`, `day` AS `day`, `dep_delay` AS `dep_delay`
+## FROM `flights`) `gdqhuralea`) `fbmlpgwwtk`
+## WHERE (`dep_delay` = `zzz4` OR `dep_delay` = `zzz5`)
+bestworst
+## Source:   query [824 x 4]
+## Database: spark connection master=local[4] app=sparklyr local=TRUE
+## Groups: year, month, day
+## 
+##     year month   day dep_delay
+##    &lt;int&gt; &lt;int&gt; &lt;int&gt;     &lt;dbl&gt;
+## 1   2013     1     1       853
+## 2   2013     1     1       -15
+## 3   2013     1     1       -15
+## 4   2013     1     9      1301
+## 5   2013     1     9       -17
+## 6   2013     1    14       -20
+## 7   2013     1    14       334
+## 8   2013     1    23       -18
+## 9   2013     1    23       478
+## 10  2013     1    24       -15
+## # ... with 814 more rows</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Rank each flight within a daily</span>
+ranked &lt;-<span class="st"> </span>flights_tbl %&gt;%
+<span class="st">  </span><span class="kw">group_by</span>(year, month, day) %&gt;%
+<span class="st">  </span><span class="kw">select</span>(dep_delay) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">rank =</span> <span class="kw">rank</span>(<span class="kw">desc</span>(dep_delay)))
+<span class="kw">show_query</span>(ranked)</code></pre></div>
+<pre><code>## &lt;SQL&gt;
+## SELECT `year`, `month`, `day`, `dep_delay`, rank() OVER (PARTITION BY `year`, `month`, `day` ORDER BY `dep_delay` DESC) AS `rank`
+## FROM (SELECT `year` AS `year`, `month` AS `month`, `day` AS `day`, `dep_delay` AS `dep_delay`
+## FROM `flights`) `tcrrrtnofg`</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">ranked</code></pre></div>
+<pre><code>## Source:   query [3.368e+05 x 5]
+## Database: spark connection master=local[4] app=sparklyr local=TRUE
+## Groups: year, month, day
+## 
+##     year month   day dep_delay  rank
+##    &lt;int&gt; &lt;int&gt; &lt;int&gt;     &lt;dbl&gt; &lt;int&gt;
+## 1   2013     1     1       853     1
+## 2   2013     1     1       379     2
+## 3   2013     1     1       290     3
+## 4   2013     1     1       285     4
+## 5   2013     1     1       260     5
+## 6   2013     1     1       255     6
+## 7   2013     1     1       216     7
+## 8   2013     1     1       192     8
+## 9   2013     1     1       157     9
+## 10  2013     1     1       155    10
+## # ... with 3.368e+05 more rows</code></pre>
+<h3 id="sampling">Sampling</h3>
+<p>You can use <code>sdf_sample</code> to take a random sample of rows.</p>
+<p>Run the block below and compare the size of the sample to the size of the original flights_tbl (Please use summarize to find the row count, as not all remote data services implement nrow(). Spark does, but you can't always count on it).</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">fsample &lt;-<span class="st"> </span><span class="kw">sdf_sample</span>(flights_tbl, <span class="fl">0.01</span>)</code></pre></div>
+<h3 id="writing-data">Writing Data</h3>
+<p>It is often useful to save the results of your analysis or the tables that you have generated on your Spark cluster into persistent storage. The best option in many scenarios is to write the table out to a <a href="https://parquet.apache.org/">Parquet</a> file using the <a href="reference/sparklyr/spark_write_parquet.html">spark_write_parquet</a> function. For example:</p>
+<ul class="incremental">
+<li><code>spark_write_parquet</code> Writes a Parquet file</li>
+<li><code>spark_write_csv</code> Writes a CSV file</li>
+<li><code>spark_write_json</code> Writes a JSON file</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">spark_write_parquet</span>(flights_tbl, <span class="st">&quot;data/nycflights13-parquet/flights&quot;</span>, <span class="dt">mode =</span> <span class="st">&quot;overwrite&quot;</span>)
+<span class="kw">spark_write_parquet</span>(airlines_tbl, <span class="st">&quot;data/nycflights13-parquet/airlines&quot;</span>, <span class="dt">mode =</span> <span class="st">&quot;overwrite&quot;</span>)</code></pre></div>
+<h3 id="reading-data">Reading Data</h3>
+<p>You can read data into Spark DataFrames using the following functions:</p>
+<ul class="incremental">
+<li><code>spark_read_csv</code> Reads a CSV file and provides a data source compatible with dplyr</li>
+<li><code>spark_read_json</code> Reads a JSON file and provides a data source compatible with dplyr</li>
+<li><code>spark_read_parquet</code> Reads a parquet file and provides a data source compatible with dplyr</li>
+</ul>
+<p>Regardless of the format of your data, Spark supports reading data from a variety of different data sources. These include data stored on HDFS (<code>hdfs://</code> protocol), Amazon S3 (<code>s3n://</code> protocol), or local files available to the Spark worker nodes (<code>file://</code> protocol)</p>
+<p>Each of these functions returns a reference to a Spark DataFrame which can be used as a dplyr table (<code>tbl</code>).</p>
+<p>This will write the Spark DataFrame referenced by the tbl R variable to the given HDFS path. You can use the <a href="reference/sparklyr/spark_read_parquet.html">spark_read_parquet</a> function to read the same table back into a subsequent Spark session:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">spark_read_parquet</span>(sc, <span class="st">&quot;data&quot;</span>, <span class="st">&quot;data/nycflights13-parquet/flights&quot;</span>)</code></pre></div>
+<pre><code>## Source:   query [3.368e+05 x 19]
+## Database: spark connection master=local[4] app=sparklyr local=TRUE
+## 
+##     year month   day dep_time sched_dep_time dep_delay arr_time
+##    &lt;int&gt; &lt;int&gt; &lt;int&gt;    &lt;int&gt;          &lt;int&gt;     &lt;dbl&gt;    &lt;int&gt;
+## 1   2013     4    26     1420           1430       -10     1557
+## 2   2013     4    26     1420           1359        21     1613
+## 3   2013     4    26     1423           1430        -7     1753
+## 4   2013     4    26     1425           1429        -4     1741
+## 5   2013     4    26     1425           1415        10     1525
+## 6   2013     4    26     1426           1412        14     1713
+## 7   2013     4    26     1426           1415        11     1628
+## 8   2013     4    26     1429           1345        44     1617
+## 9   2013     4    26     1430           1435        -5     1553
+## 10  2013     4    26     1431           1435        -4     1646
+## # ... with 3.368e+05 more rows, and 12 more variables:
+## #   sched_arr_time &lt;int&gt;, arr_delay &lt;dbl&gt;, carrier &lt;chr&gt;, flight &lt;int&gt;,
+## #   tailnum &lt;chr&gt;, origin &lt;chr&gt;, dest &lt;chr&gt;, air_time &lt;dbl&gt;,
+## #   distance &lt;dbl&gt;, hour &lt;dbl&gt;, minute &lt;dbl&gt;, time_hour &lt;dbl&gt;</code></pre>

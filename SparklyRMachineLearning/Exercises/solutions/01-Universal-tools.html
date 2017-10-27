@@ -1,0 +1,428 @@
+<h1 id="markdown-logistics">Markdown logistics</h1>
+<hr />
+<p><strong>Exercise 1</strong>: <em>Read through this section and try out the features described below. Stop when you get to the first horizontal rule (<code>***</code>)</em></p>
+<p>These notes are an R Markdown Document that contains both text and code.</p>
+<ul class="incremental">
+<li><p>Add a new chunk of code by clicking the <em>Insert Chunk</em> button on the toolbar or by pressing <em>Cmd+Option+I</em>.</p></li>
+<li><p>Execute a chunk by clicking the <em>Run</em> button within the chunk or by placing your cursor inside it and pressing <em>Cmd+Shift+Enter</em>. The results will appear beneath the code. To see how this works, try executing the chunk below:</p></li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">paste</span>(<span class="st">&quot;Hello&quot;</span>, <span class="st">&quot;world!&quot;</span>)</code></pre></div>
+<pre><code>## [1] &quot;Hello world!&quot;</code></pre>
+<p>When you save the document, an HTML file containing the code and output will be saved alongside it (click the <em>Preview</em> button or press <em>Cmd+Shift+K</em> to preview the HTML file).</p>
+<p>Use Markdown syntax to format text for the HTML output. Click <em>Help &gt; Markdown Quick Reference</em> in the toolbar to open a guide in the help pane.</p>
+<hr />
+<h1 id="dplyr">dplyr</h1>
+<p>The dplyr package provides a universal set of tools for data manipulation. You can use these tools to manipulate from R data that is stored in</p>
+<ul class="incremental">
+<li>R</li>
+<li>databases</li>
+<li>Spark</li>
+</ul>
+<p>and other places. dplyr is written to be a front end with extensible backends. For more information, see <a href="https://cran.r-project.org/web/packages/dplyr/vignettes/new-sql-backend.html">Adding a new SQL backend</a>.</p>
+<p>Dplyr contains ~18 functions that together form a complete grammar of data manipulation. These functions can loosely be categorized into:</p>
+<h2 id="single-table-verbs">Single table verbs</h2>
+<p>Single table verbs take a single data frame, reference, or tibble and return a single data frame, reference, or tibble.</p>
+<ul class="incremental">
+<li><p><code>select</code> - returns a subset of columns from the data.</p></li>
+<li><p><code>mutate</code> - returns the data with one or more new columns computed from the data.</p></li>
+<li><p><code>filter</code> - return only the rows of the data that meet one or more logical conditions.</p></li>
+<li><p><code>arrange</code> - returns the data with the rows reordered by increasing (or descending with <code>desc()</code>) values of one or more variables.</p></li>
+<li><p><code>summarise</code> - returns a new data set that summarises the information in the original data set.</p></li>
+<li><p><code>group_by</code> - &quot;splits&quot; the data into sub-groups based on common values of a variable (or common combinations of the values of two or more variables). dplyr functions will treat each group within a grouped data set separately, which is very useful with <code>summarise</code>.</p></li>
+</ul>
+<hr />
+<p><strong>Exercise 2</strong>: <em>The <code>iris</code> data set contains biometric measurements of three species of flower. In the code chunk below, use dplyr functions to return just the Species name, mean Petal.Width and mean Petal.Length of the Species with the largest difference between mean Petal.Width and mean Petal.Length.</em></p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># To inspect the raw data before you begin,</span>
+<span class="co"># remove the hash tag below and run the chunk</span>
+<span class="co"># View(iris)</span>
+
+iris1 &lt;-<span class="st"> </span><span class="kw">group_by</span>(iris, Species)
+iris2 &lt;-<span class="st"> </span><span class="kw">summarise</span>(iris1, <span class="dt">avg_width =</span> <span class="kw">mean</span>(Petal.Width), <span class="dt">avg_length =</span> <span class="kw">mean</span>(Petal.Length))
+iris3 &lt;-<span class="st"> </span><span class="kw">mutate</span>(iris2, <span class="dt">diff =</span> avg_length -<span class="st"> </span>avg_width)
+iris4 &lt;-<span class="st"> </span><span class="kw">filter</span>(iris3, diff ==<span class="st"> </span><span class="kw">max</span>(diff))
+<span class="kw">select</span>(iris4, Species, avg_width, avg_length)</code></pre></div>
+<pre><code>## # A tibble: 1 × 3
+##     Species avg_width avg_length
+##      &lt;fctr&gt;     &lt;dbl&gt;      &lt;dbl&gt;
+## 1 virginica     2.026      5.552</code></pre>
+<hr />
+<h2 id="the-pipe-operator">The pipe operator</h2>
+<p>A pipe is a sequence of functions where each function passes its output to the next function to use as input. Pipes are common with dplyr, as dplyr functions are written to be composable.</p>
+<p>The easiest way to write a pipe in R is with the <code>%&gt;%</code> operator from the magrittr package (imported with the dplyr package). <code>%&gt;%</code> passes the output of the expression on the left-hand side of the pipe as the first argument of the expression on the right hand side of the pipe, e.g. these two pieces of code do the same thing.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">filter</span>(iris, Sepal.Length ==<span class="st"> </span><span class="kw">max</span>(Sepal.Length))</code></pre></div>
+<pre><code>##   Sepal.Length Sepal.Width Petal.Length Petal.Width   Species
+## 1          7.9         3.8          6.4           2 virginica</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">iris %&gt;%<span class="st"> </span><span class="kw">filter</span>(Sepal.Length ==<span class="st"> </span><span class="kw">max</span>(Sepal.Length))</code></pre></div>
+<pre><code>##   Sepal.Length Sepal.Width Petal.Length Petal.Width   Species
+## 1          7.9         3.8          6.4           2 virginica</code></pre>
+<p>Type <code>%&gt;%</code> with the keyboard shortcut <em>Cmd+Shift+M</em>.</p>
+<hr />
+<p><strong>Exercise 3</strong>: *You can use <code>%&gt;%</code> to string many functions together into a long pipe. Use <code>%&gt;%</code> to turn the code below (from Exercise 3) into a single long pipe.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">iris %&gt;%<span class="st">  </span>
+<span class="st">  </span><span class="kw">group_by</span>(Species) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">summarise</span>(<span class="dt">avg_width =</span> <span class="kw">mean</span>(Petal.Width), <span class="dt">avg_length =</span> <span class="kw">mean</span>(Petal.Length)) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">diff =</span> avg_length -<span class="st"> </span>avg_width) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">filter</span>(diff ==<span class="st"> </span><span class="kw">max</span>(diff)) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">select</span>(-diff)</code></pre></div>
+<pre><code>## # A tibble: 1 × 3
+##     Species avg_width avg_length
+##      &lt;fctr&gt;     &lt;dbl&gt;      &lt;dbl&gt;
+## 1 virginica     2.026      5.552</code></pre>
+<hr />
+<h2 id="two-table-verbs">Two table verbs</h2>
+<p>Two table verbs take two data frames, references, or tibbles and return a single data frame, reference, or tibble.</p>
+<ul class="incremental">
+<li><p><code>bind_rows</code> - adds one data set beneath another as new rows</p></li>
+<li><p><code>union</code> - returns every row that appears in at least one of the data sets, removing duplicate rows</p></li>
+<li><p><code>intersect</code> - returns the rows that appear in both data sets</p></li>
+<li><p><code>setdiff</code> - returns the rows that appear in the first data set, but not the second</p></li>
+<li><p><code>bind_cols</code> - adds one data set beside the other as new columns</p></li>
+</ul>
+<p><strong>Mutating joins</strong> add new variables to one data set from matching rows in a second data set. dplyr has 4 mutating joins. The joins differ in the information they do not return. Mutating joins add columns from both data frames.</p>
+<ul class="incremental">
+<li><p><code>left_join</code> - Takes rows from the <em>first</em> (left) data set and builds matches, if any, with the <em>second</em> (right) data set. Non-matching left rows are retained.</p></li>
+<li><p><code>right_join</code> - Same as left join with roles of <em>first</em> and <em>second</em> reversed.</p></li>
+<li><p><code>inner_join</code> - Matches only rows in both data sets.</p></li>
+<li><p><code>full_join</code> - Matches rows in either data set- even if they do have no match.</p></li>
+</ul>
+<p>Extra credit: <strong>Filtering joins</strong> return rows from the first data set based on whether or not they match rows in the second data set.</p>
+<ul class="incremental">
+<li><p><code>semi_join</code> - Returns rows from first data set that <em>match</em> rows in the second data set.</p></li>
+<li><p><code>anti_join</code> - Returns rows from first data set that <em>do not match</em> rows in the second data set.</p></li>
+</ul>
+<hr />
+<p><strong>Exercise 4</strong>: <em>The code below creates two simple data sets that can be joined together. Run the chunks and examine the data sets. Then use the following chunk to test out different types of joins with the data sets and to compare their results. Use what you discover to finish the definition of each join above in your own words.</em></p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">band &lt;-<span class="st"> </span>
+<span class="st">  </span><span class="kw">data_frame</span>(<span class="dt">name =</span> <span class="kw">c</span>(<span class="st">&quot;Mick&quot;</span>, <span class="st">&quot;John&quot;</span>, <span class="st">&quot;Paul&quot;</span>),
+             <span class="dt">band =</span> <span class="kw">c</span>(<span class="st">&quot;Stones&quot;</span>, <span class="st">&quot;Beatles&quot;</span>, <span class="st">&quot;Beatles&quot;</span>),
+             <span class="dt">region =</span> <span class="kw">c</span>(<span class="st">&#39;UK&#39;</span>, <span class="st">&#39;UK&#39;</span>, <span class="st">&#39;UK&#39;</span>))</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">instrument &lt;-<span class="st"> </span>
+<span class="st">  </span><span class="kw">data_frame</span>(<span class="dt">name =</span> <span class="kw">c</span>(<span class="st">&quot;John&quot;</span>, <span class="st">&quot;Paul&quot;</span>, <span class="st">&quot;Keith&quot;</span>),
+             <span class="dt">plays =</span> <span class="kw">c</span>(<span class="st">&quot;guitar&quot;</span>, <span class="st">&quot;bass&quot;</span>, <span class="st">&quot;guitar&quot;</span>),
+             <span class="dt">region =</span> <span class="kw">c</span>(<span class="st">&#39;UK&#39;</span>, <span class="st">&#39;UK&#39;</span>, <span class="st">&#39;UK&#39;</span>))</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># join</span>
+<span class="kw">inner_join</span>(band, instrument, <span class="dt">by =</span> <span class="st">&quot;name&quot;</span>)</code></pre></div>
+<pre><code>## # A tibble: 2 × 5
+##    name    band region.x  plays region.y
+##   &lt;chr&gt;   &lt;chr&gt;    &lt;chr&gt;  &lt;chr&gt;    &lt;chr&gt;
+## 1  John Beatles       UK guitar       UK
+## 2  Paul Beatles       UK   bass       UK</code></pre>
+<p>Extra credit, explain what happens if there are duplicate keys in one or more tables?</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># join</span>
+<span class="kw">inner_join</span>(band, instrument, <span class="dt">by =</span> <span class="st">&quot;region&quot;</span>)</code></pre></div>
+<pre><code>## # A tibble: 9 × 5
+##   name.x    band region name.y  plays
+##    &lt;chr&gt;   &lt;chr&gt;  &lt;chr&gt;  &lt;chr&gt;  &lt;chr&gt;
+## 1   Mick  Stones     UK   John guitar
+## 2   Mick  Stones     UK   Paul   bass
+## 3   Mick  Stones     UK  Keith guitar
+## 4   John Beatles     UK   John guitar
+## 5   John Beatles     UK   Paul   bass
+## 6   John Beatles     UK  Keith guitar
+## 7   Paul Beatles     UK   John guitar
+## 8   Paul Beatles     UK   Paul   bass
+## 9   Paul Beatles     UK  Keith guitar</code></pre>
+<hr />
+<h1 id="airlines-project">Airlines Project</h1>
+<p>The nycflights13 package contains records of every flight that departed from La Guardia (<code>LGA</code>), JFK (<code>JFK</code>) and Newark (<code>EWR</code>) airports in 2013.</p>
+<p>The data is split into five related data sets:</p>
+<ol class="incremental" style="list-style-type: decimal">
+<li><code>flights</code> - arrival and departure delay information by flight (the main data set)</li>
+<li><code>airlines</code> - airlines names by code</li>
+<li><code>airports</code> - airport names by code</li>
+<li><code>planes</code> - plane metadata</li>
+<li><code>weather</code> - hourly weather data</li>
+</ol>
+<div class="figure">
+<img src="nycflights.png" alt="" />
+
+</div>
+<p><strong>Exercise 5</strong>: <em>Use the chunk below to determine which airline has the newest planes (assigned to the NYC area).</em></p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">flights %&gt;%
+<span class="st">  </span><span class="co"># selects distinct combinations of carrier and tailnum</span>
+<span class="st">  </span><span class="kw">distinct</span>(carrier, tailnum) %&gt;%
+<span class="st">  </span><span class="co"># join to planes to get year manufactured</span>
+<span class="st">  </span><span class="co"># (which column should you join on?)</span>
+<span class="st">  </span><span class="kw">left_join</span>(planes, <span class="dt">by =</span> <span class="st">&quot;tailnum&quot;</span>) %&gt;%
+<span class="st">  </span><span class="co"># group by carrier (e.g. the airline)</span>
+<span class="st">  </span><span class="kw">group_by</span>(carrier) %&gt;%
+<span class="st">  </span><span class="co"># calculate by carrier:</span>
+<span class="st">  </span><span class="co">#   1. avg - the mean year (with na.rm = TRUE) </span>
+<span class="st">  </span><span class="co">#   2. n - the total number of planes</span>
+<span class="st">  </span><span class="co">#   3. nas - the number of planes with unknown year (year == NA)</span>
+<span class="st">  </span><span class="kw">summarise</span>(<span class="dt">avg =</span> <span class="kw">mean</span>(year, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>), 
+            <span class="dt">n =</span> <span class="kw">n</span>(), <span class="dt">nas =</span> <span class="kw">sum</span>(<span class="kw">is.na</span>(year))) %&gt;%
+<span class="st">  </span><span class="co"># join to airlines to get full airline name </span>
+<span class="st">  </span><span class="co"># (which column should you join on?)</span>
+<span class="st">  </span><span class="kw">left_join</span>(airlines, <span class="dt">by =</span> <span class="st">&quot;carrier&quot;</span>) %&gt;%
+<span class="st">  </span><span class="co"># select just the name, avg, n, and nas variables in that order</span>
+<span class="st">  </span><span class="kw">select</span>(name, avg, n, nas) %&gt;%
+<span class="st">  </span><span class="co"># order the results by avg with the newest planes at the top</span>
+<span class="st">  </span><span class="kw">arrange</span>(<span class="kw">desc</span>(avg)) -&gt;<span class="st"> </span>answer
+
+<span class="kw">print</span>(answer)</code></pre></div>
+<pre><code>## # A tibble: 16 × 4
+##                           name      avg     n   nas
+##                          &lt;chr&gt;    &lt;dbl&gt; &lt;int&gt; &lt;int&gt;
+## 1       Hawaiian Airlines Inc. 2011.769    14     1
+## 2               Virgin America 2008.712    53     1
+## 3       Frontier Airlines Inc. 2008.000    26     3
+## 4         Alaska Airlines Inc. 2007.843    84     1
+## 5              JetBlue Airways 2006.503   193     6
+## 6        SkyWest Airlines Inc. 2005.857    28     0
+## 7            Endeavor Air Inc. 2004.713   204     2
+## 8           Mesa Airlines Inc. 2003.561    58     1
+## 9     ExpressJet Airlines Inc. 2002.442   316     8
+## 10 AirTran Airways Corporation 2002.205   129    17
+## 11             US Airways Inc. 2002.004   290    21
+## 12      Southwest Airlines Co. 2001.995   583    14
+## 13       United Air Lines Inc. 1999.949   621    32
+## 14        Delta Air Lines Inc. 1995.328   629    20
+## 15      American Airlines Inc. 1987.598   601   437
+## 16                   Envoy Air 1977.500   238   234</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(<span class="st">&quot;xtable&quot;</span>)</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">print</span>(<span class="kw">xtable</span>(answer), 
+      <span class="dt">type =</span> <span class="st">&#39;HTML&#39;</span> ,
+      <span class="dt">include.rownames =</span> <span class="ot">FALSE</span>)</code></pre></div>
+<!-- html table generated in R 3.3.3 by xtable 1.8-2 package -->
+<!-- Thu Mar 23 08:17:10 2017 -->
+<table border="1">
+<tr>
+<th>
+name
+</th>
+<th>
+avg
+</th>
+<th>
+n
+</th>
+<th>
+nas
+</th>
+</tr>
+<tr>
+<td>
+Hawaiian Airlines Inc.
+</td>
+<td align="right">
+2011.77
+</td>
+<td align="right">
+14
+</td>
+<td align="right">
+1
+</td>
+</tr>
+<tr>
+<td>
+Virgin America
+</td>
+<td align="right">
+2008.71
+</td>
+<td align="right">
+53
+</td>
+<td align="right">
+1
+</td>
+</tr>
+<tr>
+<td>
+Frontier Airlines Inc.
+</td>
+<td align="right">
+2008.00
+</td>
+<td align="right">
+26
+</td>
+<td align="right">
+3
+</td>
+</tr>
+<tr>
+<td>
+Alaska Airlines Inc.
+</td>
+<td align="right">
+2007.84
+</td>
+<td align="right">
+84
+</td>
+<td align="right">
+1
+</td>
+</tr>
+<tr>
+<td>
+JetBlue Airways
+</td>
+<td align="right">
+2006.50
+</td>
+<td align="right">
+193
+</td>
+<td align="right">
+6
+</td>
+</tr>
+<tr>
+<td>
+SkyWest Airlines Inc.
+</td>
+<td align="right">
+2005.86
+</td>
+<td align="right">
+28
+</td>
+<td align="right">
+0
+</td>
+</tr>
+<tr>
+<td>
+Endeavor Air Inc.
+</td>
+<td align="right">
+2004.71
+</td>
+<td align="right">
+204
+</td>
+<td align="right">
+2
+</td>
+</tr>
+<tr>
+<td>
+Mesa Airlines Inc.
+</td>
+<td align="right">
+2003.56
+</td>
+<td align="right">
+58
+</td>
+<td align="right">
+1
+</td>
+</tr>
+<tr>
+<td>
+ExpressJet Airlines Inc.
+</td>
+<td align="right">
+2002.44
+</td>
+<td align="right">
+316
+</td>
+<td align="right">
+8
+</td>
+</tr>
+<tr>
+<td>
+AirTran Airways Corporation
+</td>
+<td align="right">
+2002.21
+</td>
+<td align="right">
+129
+</td>
+<td align="right">
+17
+</td>
+</tr>
+<tr>
+<td>
+US Airways Inc.
+</td>
+<td align="right">
+2002.00
+</td>
+<td align="right">
+290
+</td>
+<td align="right">
+21
+</td>
+</tr>
+<tr>
+<td>
+Southwest Airlines Co.
+</td>
+<td align="right">
+2001.99
+</td>
+<td align="right">
+583
+</td>
+<td align="right">
+14
+</td>
+</tr>
+<tr>
+<td>
+United Air Lines Inc.
+</td>
+<td align="right">
+1999.95
+</td>
+<td align="right">
+621
+</td>
+<td align="right">
+32
+</td>
+</tr>
+<tr>
+<td>
+Delta Air Lines Inc.
+</td>
+<td align="right">
+1995.33
+</td>
+<td align="right">
+629
+</td>
+<td align="right">
+20
+</td>
+</tr>
+<tr>
+<td>
+American Airlines Inc.
+</td>
+<td align="right">
+1987.60
+</td>
+<td align="right">
+601
+</td>
+<td align="right">
+437
+</td>
+</tr>
+<tr>
+<td>
+Envoy Air
+</td>
+<td align="right">
+1977.50
+</td>
+<td align="right">
+238
+</td>
+<td align="right">
+234
+</td>
+</tr>
+</table>

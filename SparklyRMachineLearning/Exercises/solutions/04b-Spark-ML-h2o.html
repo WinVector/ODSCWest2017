@@ -1,0 +1,383 @@
+<p>These are the class notes (Part 4 of 3) for <em>R for Big Data</em>, a workshop taught at <em>Strata + Hadoop World 2016 NYC</em>. The notes are saved as an R Markdown Notebook. See Part 1, <em>Universal Tools</em> to learn more about how to use R Markdown Notebooks.</p>
+<h1 id="overview">Overview</h1>
+<p>Let's do the same analysis on the Titanic data, using h2o. The work pattern is to load the data into Spark, do some data transformations there, and then do the machine learning in h2o.</p>
+<h1 id="load-the-data">Load the data</h1>
+<p>Load the Titanic Parquet data into a local spark cluster.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Connect to local spark cluster and load data</span>
+sc &lt;-<span class="st"> </span><span class="kw">spark_connect</span>(<span class="dt">master =</span> <span class="st">&quot;local&quot;</span>, <span class="dt">version =</span> <span class="st">&quot;2.0.0&quot;</span>)
+<span class="kw">spark_read_parquet</span>(sc, <span class="dt">name =</span> <span class="st">&quot;titanic&quot;</span>, <span class="dt">path =</span> <span class="st">&quot;datainputs/titanic-parquet&quot;</span>)</code></pre></div>
+<pre><code>## Source:   query [891 x 12]
+## Database: spark connection master=local[4] app=sparklyr local=TRUE
+## 
+##    PassengerId Survived Pclass
+##          &lt;int&gt;    &lt;int&gt;  &lt;int&gt;
+## 1            1        0      3
+## 2            2        1      1
+## 3            3        1      3
+## 4            4        1      1
+## 5            5        0      3
+## 6            6        0      3
+## 7            7        0      1
+## 8            8        0      3
+## 9            9        1      3
+## 10          10        1      2
+## # ... with 881 more rows, and 9 more variables: Name &lt;chr&gt;, Sex &lt;chr&gt;,
+## #   Age &lt;dbl&gt;, SibSp &lt;int&gt;, Parch &lt;int&gt;, Ticket &lt;chr&gt;, Fare &lt;dbl&gt;,
+## #   Cabin &lt;chr&gt;, Embarked &lt;chr&gt;</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">titanic_tbl &lt;-<span class="st"> </span><span class="kw">tbl</span>(sc, <span class="st">&quot;titanic&quot;</span>)</code></pre></div>
+<hr />
+<h1 id="tidy-the-data">Tidy the data</h1>
+<p>Tidy the data in preparation for model fitting.</p>
+<h2 id="spark-sql-transforms">Spark SQL transforms</h2>
+<p>Use feature transforms with Spark SQL. Create new features and modify existing features with <code>dplyr</code> syntax.</p>
+<ol class="incremental" style="list-style-type: decimal">
+<li>Family_Size - Create number of siblings and parents</li>
+<li>Pclass - Format passenger class as character not numeric</li>
+<li>Embarked - Remove a small number of missing records</li>
+<li>Age - Impute missing age with average age</li>
+</ol>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Transform features with Spark SQL API</span>
+titanic2_tbl &lt;-<span class="st"> </span>titanic_tbl %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Family_Size =</span> SibSp +<span class="st"> </span>Parch +<span class="st"> </span>1L) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Pclass =</span> <span class="kw">as.character</span>(Pclass)) %&gt;%
+<span class="st">  </span><span class="kw">filter</span>(!<span class="kw">is.na</span>(Embarked)) %&gt;%
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Age =</span> <span class="kw">if_else</span>(<span class="kw">is.na</span>(Age), <span class="kw">mean</span>(Age), Age)) %&gt;%
+<span class="st">  </span><span class="kw">sdf_register</span>(<span class="st">&quot;titanic2&quot;</span>)</code></pre></div>
+<blockquote>
+<p>Tip: <code>sdf_register</code> is used to save our table for later analysis. This allows direct SQL on the table, which requires a name. <a href="http://stackoverflow.com/questions/30926785/spark-dataframes-registertemptable-vs-not" class="uri">http://stackoverflow.com/questions/30926785/spark-dataframes-registertemptable-vs-not</a>.</p>
+</blockquote>
+<h2 id="spark-ml-transforms">Spark ML transforms</h2>
+<p>Use feature transforms with Spark ML. Use <code>ft_bucketizer</code> to bucket family sizes into groups.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Transform family size with Spark ML API</span>
+titanic_final_tbl &lt;-<span class="st"> </span>titanic2_tbl %&gt;%
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Family_Size =</span> <span class="kw">as.numeric</span>(Family_size)) %&gt;%
+<span class="st">  </span><span class="kw">sdf_mutate</span>(
+    <span class="dt">Family_Sizes =</span> <span class="kw">ft_bucketizer</span>(Family_Size, <span class="dt">splits =</span> <span class="kw">c</span>(<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">5</span>,<span class="dv">12</span>))
+    ) %&gt;%
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">Family_Sizes =</span> <span class="kw">as.character</span>(<span class="kw">as.integer</span>(Family_Sizes))) %&gt;%
+<span class="st">  </span><span class="kw">compute</span>()</code></pre></div>
+<h2 id="import-data-to-h2o">Import data to H2O</h2>
+<p>Import the data from Spark to H2O for the machine learning.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Make the h2o context available to spark</span>
+<span class="kw">h2o_context</span>(sc)</code></pre></div>
+<pre><code>## &lt;jobj[48]&gt;
+##   class org.apache.spark.h2o.H2OContext
+##   
+## Sparkling Water Context:
+##  * H2O name: sparkling-water-johnmount_2083288225
+##  * cluster size: 1
+##  * list of used nodes:
+##   (executorId, host, port)
+##   ------------------------
+##   (driver,127.0.0.1,54321)
+##   ------------------------
+## 
+##   Open H2O Flow in browser: http://127.0.0.1:54321 (CMD + click in Mac OSX)
+## </code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">titanic_h2o &lt;-<span class="st"> </span><span class="kw">as_h2o_frame</span>(sc, titanic_final_tbl) 
+<span class="kw">class</span>(titanic_h2o)</code></pre></div>
+<pre><code>## [1] &quot;H2OFrame&quot;</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">h2o.getId</span>(titanic_h2o)</code></pre></div>
+<pre><code>## [1] &quot;frame_rdd_84_9bb718063b718fccc3ded4d5b7014c3e&quot;</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># see what we have</span>
+keys &lt;-<span class="st"> </span><span class="kw">h2o.ls</span>()
+<span class="kw">print</span>(keys)</code></pre></div>
+<pre><code>##                                             key
+## 1 frame_rdd_84_9bb718063b718fccc3ded4d5b7014c3e</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">ref &lt;-<span class="st"> </span><span class="kw">h2o.getFrame</span>(<span class="kw">as.character</span>(keys[[<span class="dv">1</span>]]))
+<span class="kw">print</span>(ref)</code></pre></div>
+<pre><code>##   PassengerId Survived Pclass
+## 1           1        0      3
+## 2           2        1      1
+## 3           3        1      3
+## 4           4        1      1
+## 5           5        0      3
+## 6           6        0      3
+##                                                  Name    Sex SibSp Parch
+## 1                             Braund, Mr. Owen Harris   male     1     0
+## 2 Cumings, Mrs. John Bradley (Florence Briggs Thayer) female     1     0
+## 3                              Heikkinen, Miss. Laina female     0     0
+## 4        Futrelle, Mrs. Jacques Heath (Lily May Peel) female     1     0
+## 5                            Allen, Mr. William Henry   male     0     0
+## 6                                    Moran, Mr. James   male     0     0
+##             Ticket    Fare Cabin Embarked      Age Family_Size
+## 1        A/5 21171  7.2500  &lt;NA&gt;        S 22.00000           2
+## 2         PC 17599 71.2833   C85        C 38.00000           2
+## 3 STON/O2. 3101282  7.9250  &lt;NA&gt;        S 26.00000           1
+## 4           113803 53.1000  C123        S 35.00000           2
+## 5           373450  8.0500  &lt;NA&gt;        S 35.00000           1
+## 6           330877  8.4583  &lt;NA&gt;        Q 29.64209           1
+##   Family_Sizes
+## 1            1
+## 2            1
+## 3            0
+## 4            1
+## 5            0
+## 6            0
+## 
+## [889 rows x 14 columns]</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># can remove with : h2o.rm(as.character(keys[[1]]))</span></code></pre></div>
+<p>The equivalent of factor (categorical type) in h2o is the <code>enum</code>. Unlike R (and Spark ML), h2o does not automatically convert character vectors into enums before modeling. So we have to do it explicitly.</p>
+<p>Some of the modeling methods insist on a enum type for the output, as well, when doing classification, so we must also convert the outcome to enum.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># check for character vectors</span>
+ischar =<span class="st"> </span><span class="kw">is.character</span>(titanic_h2o)  <span class="co"># this is h2o::is.character</span>
+cvars =<span class="st"> </span><span class="kw">colnames</span>(titanic_h2o)[ischar] 
+for(var in cvars) {
+    titanic_h2o[[var]] =<span class="st"> </span><span class="kw">as.factor</span>(titanic_h2o[[var]]) <span class="co"># this is h2o::is.factor</span>
+}
+
+outcome=<span class="st"> &quot;Survived&quot;</span>
+titanic_h2o[[outcome]] =<span class="st"> </span><span class="kw">as.factor</span>(titanic_h2o[[outcome]])</code></pre></div>
+<h2 id="train-validation-split">Train-validation split</h2>
+<p>Randomly partition the data into train and test sets.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># partition the data 75/25 (as we did in the SparkML exercise)</span>
+partition =<span class="st"> </span><span class="kw">h2o.splitFrame</span>(titanic_h2o, <span class="dt">ratios=</span><span class="fl">0.75</span>, <span class="dt">seed=</span><span class="dv">8585</span>)
+
+<span class="co"># table references</span>
+training =<span class="st"> </span>partition[[<span class="dv">1</span>]]
+test =<span class="st"> </span>partition[[<span class="dv">2</span>]]
+
+<span class="kw">nrow</span>(training)</code></pre></div>
+<pre><code>## [1] 656</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">nrow</span>(test)</code></pre></div>
+<pre><code>## [1] 233</code></pre>
+<hr />
+<h2 id="machine-learning-in-h2o">Machine Learning in H2O</h2>
+<p>Compare the following 5 models. Note that H2O does not have a vanilla decision tree algorithm</p>
+<ul class="incremental">
+<li>Random forest - <code>h2o.randomForest</code></li>
+<li>Gradient boosted trees - <code>h2o.gbm</code></li>
+<li>Logistic regression - <code>h2o.glm</code></li>
+<li>Deep neural network - <code>h2o.deeplearning</code></li>
+<li>Naive Bayes - <code>h2o.naiveBayes</code></li>
+</ul>
+<h1 id="train-the-models">Train the models</h1>
+<p>Train multiple machine learning algorithms on the training data. Score the test data with the fitted models.</p>
+<h2 id="logistic-regression">Logistic regression</h2>
+<p>Logistic regression is one of the most common classifiers. Train the logistic regression and examine the predictors.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Model survival as a function of several predictors</span>
+outcome =<span class="st"> &quot;Survived&quot;</span>
+xvars =<span class="st"> </span><span class="kw">setdiff</span>(<span class="kw">colnames</span>(training), <span class="kw">c</span>(outcome, <span class="st">&quot;Name&quot;</span>, <span class="st">&quot;PassengerId&quot;</span>, <span class="st">&quot;Ticket&quot;</span>, <span class="st">&quot;Cabin&quot;</span>))
+xvars</code></pre></div>
+<pre><code>## [1] &quot;Pclass&quot;       &quot;Sex&quot;          &quot;SibSp&quot;        &quot;Parch&quot;       
+## [5] &quot;Fare&quot;         &quot;Embarked&quot;     &quot;Age&quot;          &quot;Family_Size&quot; 
+## [9] &quot;Family_Sizes&quot;</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Train a logistic regression model</span>
+ml_log &lt;-<span class="st"> </span><span class="kw">h2o.glm</span>(<span class="dt">x =</span> xvars, 
+                  <span class="dt">y =</span> outcome, 
+                  <span class="dt">training_frame =</span> training,
+                  <span class="dt">family=</span><span class="st">&quot;binomial&quot;</span>,
+                  <span class="dt">lambda_search =</span> <span class="ot">TRUE</span>)</code></pre></div>
+<pre><code>## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |========                                                         |  13%
+  |                                                                       
+  |=================================================================| 100%</code></pre>
+<h2 id="other-ml-algorithms">Other ML algorithms</h2>
+<p>Model with the same variables using the other machine learning algorithms. Note that we are using the default settings for various parameters, which are not necessarily <em>good</em> settings.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## Random Forest 
+ml_rf &lt;-<span class="st"> </span><span class="kw">h2o.randomForest</span>(<span class="dt">x =</span> xvars, 
+                          <span class="dt">y =</span> outcome, 
+                          <span class="dt">training_frame =</span> training)</code></pre></div>
+<pre><code>## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |================================================                 |  74%
+  |                                                                       
+  |=================================================================| 100%</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># additional parameters of interest: ntrees (default 50); max_depth (default 5)</span>
+
+## Gradient Boosted Tree
+ml_gbt &lt;-<span class="st"> </span><span class="kw">h2o.gbm</span>(<span class="dt">x =</span> xvars, 
+                  <span class="dt">y =</span> outcome, 
+                  <span class="dt">training_frame =</span> training,
+                  <span class="dt">distribution=</span><span class="st">&quot;bernoulli&quot;</span>)  </code></pre></div>
+<pre><code>## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |=================================================================| 100%</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># additional parameters of interest: ntrees (default 50); max_depth (default 5)</span>
+
+## Naive Bayes
+ml_nb &lt;-<span class="st"> </span><span class="kw">h2o.naiveBayes</span>(<span class="dt">x =</span> xvars, 
+                        <span class="dt">y =</span> outcome, 
+                        <span class="dt">training_frame =</span> training,
+                        <span class="dt">laplace=</span><span class="fl">0.001</span>) <span class="co"># use laplace smoothing (default=0 : no smoothing)</span></code></pre></div>
+<pre><code>## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |=================================================================| 100%</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## Neural Network
+ml_nn &lt;-<span class="st"> </span><span class="kw">h2o.deeplearning</span>(<span class="dt">x =</span> xvars, 
+                          <span class="dt">y =</span> outcome, 
+                          <span class="dt">training_frame =</span> training,
+                          <span class="dt">distribution=</span><span class="st">&quot;bernoulli&quot;</span>,
+                          <span class="dt">hidden =</span> <span class="kw">c</span>(<span class="dv">11</span>,<span class="dv">15</span>,<span class="dv">2</span>))</code></pre></div>
+<pre><code>## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |=================================================================| 100%</code></pre>
+<h2 id="validation-data">Validation data</h2>
+<p>Score the test data with the trained models.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Bundle the modelss into a single list object</span>
+ml_models &lt;-<span class="st"> </span><span class="kw">list</span>(
+  <span class="st">&quot;Logistic&quot;</span> =<span class="st"> </span>ml_log,
+  <span class="st">&quot;Random Forest&quot;</span> =<span class="st"> </span>ml_rf,
+  <span class="st">&quot;Gradient Boosted Trees&quot;</span> =<span class="st"> </span>ml_gbt,
+  <span class="st">&quot;Naive Bayes&quot;</span> =<span class="st"> </span>ml_nb,
+  <span class="st">&quot;Neural Net&quot;</span> =<span class="st"> </span>ml_nn
+)
+
+<span class="co"># Create a function for scoring</span>
+score_test_data &lt;-<span class="st"> </span>function(model, <span class="dt">data=</span>test){
+  <span class="co"># class prediction (predict), probability of class 0 (p0) probability of class 1 (p1)</span>
+  pred &lt;-<span class="st"> </span><span class="kw">h2o.predict</span>(model, data)
+  <span class="co"># append the column of true outcomes</span>
+  <span class="kw">h2o.cbind</span>(data[[<span class="st">&quot;Survived&quot;</span>]], pred)
+}
+
+<span class="co"># Score all the models  - a list of references to h2o results</span>
+ml_score &lt;-<span class="st"> </span><span class="kw">lapply</span>(ml_models, score_test_data)</code></pre></div>
+<pre><code>## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |=================================================================| 100%
+## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |=================================================================| 100%
+## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |=================================================================| 100%
+## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |=================================================================| 100%
+## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |=================================================================| 100%</code></pre>
+<hr />
+<h1 id="compare-results">Compare results</h1>
+<p>Compare the model results. Examine performance metrics: lift, AUC, and accuracy. Also examine feature importance to see what features are most predictive of survival.</p>
+<h2 id="model-lift">Model lift</h2>
+<p>The information to plot the gain curve come from the results of <code>h2o.gainsLift</code>, so we don't have to implement the calculation by hand as we did in the previous exercise.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Apply model &lt;modelname&gt; to test data (by default) and calculate the lift. </span>
+<span class="co"># Append a columne with the model name (for downstream plotting)</span>
+getLiftFrame =<span class="st"> </span>function(modelname, <span class="dt">data=</span>test) {
+  <span class="kw">cbind</span>(<span class="kw">h2o.gainsLift</span>(ml_models[[modelname]], data), 
+        <span class="dt">model=</span>modelname,
+        <span class="dt">stringsAsFactors=</span><span class="ot">FALSE</span>)
+}
+
+<span class="co"># calculate the gainsLift results</span>
+gainsLift =<span class="st"> </span><span class="kw">bind_rows</span>(<span class="kw">lapply</span>(<span class="kw">names</span>(ml_models), getLiftFrame))
+
+nbins=<span class="dv">16</span>
+<span class="co"># add the random guessing performance benchmark</span>
+gainsLift =<span class="st"> </span><span class="kw">bind_rows</span>(<span class="kw">data.frame</span>(<span class="dt">cumulative_data_fraction =</span> <span class="kw">seq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dt">len=</span>nbins),
+                       <span class="dt">cumulative_capture_rate=</span><span class="kw">seq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dt">len=</span>nbins),
+                       <span class="dt">model=</span><span class="st">&quot;Random Guess&quot;</span>, <span class="dt">stringsAsFactors=</span><span class="ot">FALSE</span>),
+                      gainsLift)
+
+<span class="co"># Plot results</span>
+<span class="kw">ggplot</span>(gainsLift, <span class="kw">aes</span>(<span class="dt">x =</span> cumulative_data_fraction, <span class="dt">y =</span> cumulative_capture_rate, <span class="dt">colour =</span> model)) +
+<span class="st">  </span><span class="kw">geom_point</span>() +<span class="st"> </span><span class="kw">geom_line</span>() +
+<span class="st">  </span><span class="kw">ggtitle</span>(<span class="st">&quot;Lift Chart for Predicting Survival - Test Data Set&quot;</span>)</code></pre></div>
+<div class="figure">
+<img src="04b-Spark-ML-h2o_files/figure-markdown_github/lift-1.png" alt="" />
+
+</div>
+<p>Just for fun, let's redo the curve for logistic regression using WVPlots.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># create a vector of uniform random variates the same length as the data</span>
+selection =<span class="st"> </span><span class="kw">h2o.runif</span>(ml_score[[<span class="st">&quot;Logistic&quot;</span>]])
+
+<span class="co"># bring a &quot;subset&quot; of the results from the logistic model to local R</span>
+<span class="co"># again, for true large data you would use fraction &lt; 1</span>
+fraction =<span class="st"> </span><span class="dv">1</span> 
+ml_logistic =<span class="st"> </span><span class="kw">as.data.frame</span>(ml_score[[<span class="st">&quot;Logistic&quot;</span>]][selection &lt;=<span class="st"> </span>fraction,])
+
+<span class="co"># note Survived and Predict are factors. We need to convert to 0/1</span>
+<span class="kw">str</span>(ml_logistic)</code></pre></div>
+<pre><code>## &#39;data.frame&#39;:    233 obs. of  4 variables:
+##  $ Survived: Factor w/ 2 levels &quot;0&quot;,&quot;1&quot;: 1 2 1 2 1 2 2 2 1 1 ...
+##  $ predict : Factor w/ 2 levels &quot;0&quot;,&quot;1&quot;: 1 2 1 2 1 1 2 1 1 1 ...
+##  $ p0      : num  0.911 0.0788 0.7628 0.1861 0.9713 ...
+##  $ p1      : num  0.089 0.9212 0.2372 0.8139 0.0287 ...</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">ml_logistic$Survived =<span class="st"> </span><span class="kw">as.numeric</span>(<span class="kw">as.character</span>(ml_logistic$Survived))
+<span class="kw">GainCurvePlot</span>(ml_logistic, <span class="st">&quot;p1&quot;</span>, <span class="st">&quot;Survived&quot;</span>, <span class="st">&quot;Gain Curve, Logistic model&quot;</span>)</code></pre></div>
+<div class="figure">
+<img src="04b-Spark-ML-h2o_files/figure-markdown_github/lift2-1.png" alt="" />
+
+</div>
+<h2 id="auc-and-accuracy">AUC and accuracy</h2>
+<p>H2O provides a variety of performance metrics via the function <code>h2o.performance</code>. Here, we look at Area Under the ROC curve (AUC), and accuracy. The higher the AUC the better.</p>
+<p>The class prediction is based on whether Prob(&quot;Survived&quot;) &gt; Prob(&quot;Not Survived&quot;), rather than on whether Prob(&quot;Survived&quot;) &gt; threshold. (The two are equivalent for threshold = 0.5, of course).</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Function for calculating accuracy</span>
+<span class="co"># scoreframe is a frame calculated by the function</span>
+<span class="co"># score_test_data, above</span>
+calc_accuracy &lt;-<span class="st"> </span>function(scoreframe){
+  <span class="kw">sum</span>(scoreframe[[<span class="st">&quot;Survived&quot;</span>]]==scoreframe[[<span class="st">&quot;predict&quot;</span>]])/<span class="kw">nrow</span>(scoreframe)
+}
+
+calc_auc =<span class="st"> </span>function(model, <span class="dt">data=</span>test) {
+  <span class="kw">h2o.auc</span>(<span class="kw">h2o.performance</span>(model, <span class="dt">newdata=</span>test))
+}
+
+<span class="co"># Calculate AUC and accuracy</span>
+perf_metrics &lt;-<span class="st"> </span><span class="kw">data.frame</span>(
+  <span class="dt">model =</span> <span class="kw">names</span>(ml_score),
+  <span class="dt">AUC =</span> <span class="kw">sapply</span>(ml_models, calc_auc),
+  <span class="dt">Accuracy =</span> <span class="kw">sapply</span>(ml_score, calc_accuracy),
+  <span class="dt">row.names =</span> <span class="ot">NULL</span>, <span class="dt">stringsAsFactors =</span> <span class="ot">FALSE</span>)
+
+<span class="co"># Plot results</span>
+<span class="kw">gather</span>(perf_metrics, metric, value, AUC, Accuracy) %&gt;%
+<span class="st">  </span><span class="kw">ggplot</span>(<span class="kw">aes</span>(<span class="kw">reorder</span>(model, value, <span class="dt">FUN=</span>mean), value)) +<span class="st"> </span>
+<span class="st">  </span><span class="kw">geom_pointrange</span>(<span class="kw">aes</span>(<span class="dt">ymin=</span><span class="dv">0</span>, <span class="dt">ymax=</span>value)) +<span class="st"> </span>
+<span class="st">  </span><span class="kw">facet_wrap</span>(~metric, <span class="dt">ncol=</span><span class="dv">1</span>, <span class="dt">scale=</span><span class="st">&quot;free_x&quot;</span>) +<span class="st"> </span>
+<span class="st">  </span><span class="kw">xlab</span>(<span class="st">&quot;Model&quot;</span>) +
+<span class="st">  </span><span class="kw">ylab</span>(<span class="st">&quot;Score&quot;</span>) +
+<span class="st">  </span><span class="kw">ggtitle</span>(<span class="st">&quot;Performance Metrics (Larger is better)&quot;</span>)  +
+<span class="st">  </span><span class="kw">coord_flip</span>(<span class="dt">ylim=</span><span class="kw">c</span>(<span class="dv">0</span>,<span class="dv">1</span>))</code></pre></div>
+<div class="figure">
+<img src="04b-Spark-ML-h2o_files/figure-markdown_github/auc-1.png" alt="" />
+
+</div>
+<h2 id="feature-importance">Feature importance</h2>
+<p>It is also interesting to compare the features that were identified by each model as being important predictors for survival. We can somewhat do this with the function <code>h2o.varimp</code>, which gives different style of output for different models, and does not calculate variable importances for some model types. We can compare the variable importances from tree-based models, which return the same variable importance metrics.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Initialize results</span>
+feature_importance &lt;-<span class="st"> </span><span class="kw">data.frame</span>()
+
+<span class="co"># Calculate feature importance</span>
+for(i in <span class="kw">c</span>(<span class="st">&quot;Random Forest&quot;</span>, <span class="st">&quot;Gradient Boosted Trees&quot;</span>)){
+  feature_importance &lt;-<span class="st"> </span><span class="kw">h2o.varimp</span>(ml_models[[i]]) %&gt;%
+<span class="st">    </span><span class="kw">mutate</span>(<span class="dt">Model =</span> i) %&gt;%
+<span class="st">    </span><span class="kw">select</span>(Model, variable, scaled_importance) %&gt;%
+<span class="st">    </span><span class="kw">rbind</span>(feature_importance, .)
+}
+
+<span class="co"># Plot results</span>
+feature_importance %&gt;%
+<span class="st">  </span><span class="kw">ggplot</span>(<span class="kw">aes</span>(<span class="kw">reorder</span>(variable, scaled_importance), scaled_importance)) +<span class="st"> </span>
+<span class="st">  </span><span class="kw">facet_wrap</span>(~Model) +
+<span class="st">  </span><span class="kw">geom_pointrange</span>(<span class="kw">aes</span>(<span class="dt">ymin=</span><span class="dv">0</span>, <span class="dt">ymax=</span>scaled_importance)) +<span class="st"> </span>
+<span class="st">  </span><span class="kw">coord_flip</span>() +
+<span class="st">  </span><span class="kw">xlab</span>(<span class="st">&quot;&quot;</span>) +
+<span class="st">  </span><span class="kw">ggtitle</span>(<span class="st">&quot;Feature Importance&quot;</span>)</code></pre></div>
+<div class="figure">
+<img src="04b-Spark-ML-h2o_files/figure-markdown_github/importance-1.png" alt="" />
+
+</div>

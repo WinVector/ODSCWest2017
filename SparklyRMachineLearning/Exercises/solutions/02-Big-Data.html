@@ -1,0 +1,101 @@
+<h1 id="big-data-with-r">Big Data with R</h1>
+<p>To work with &quot;big data&quot; using <code>R</code> (big data being more than you can fit comforably) in RAM you must use remote sevice (such as a database or Spark). Here we are going to simulate using a remote service using a small amount of data and an in-memory <code>SQLite</code> database. This is a warm-up before moving on to a local (4 cpu single machine) <code>Spark</code> cluster. The idea is: the commands that work at this scale (and it is quick to try things in <code>SQLite</code> and on a single node <code>Spark</code> cluster) will also work on a industrial scale <code>Spark</code> cluster.</p>
+<h2 id="dplyr-database-workflow">dplyr database workflow</h2>
+<p>Use a five step workflow to manipulate data stored in a database with dplyr:</p>
+<ol class="incremental" style="list-style-type: decimal">
+<li><p>Create a connection to a database with a dplyr driver function. Available drivers include:</p>
+<ul class="incremental">
+<li><code>src_postgres()</code></li>
+<li><code>src_sqlite()</code></li>
+<li><code>src_mysql()</code></li>
+<li><code>Spark</code></li>
+<li><code>bigquery::src_bigquery()</code></li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(<span class="st">&quot;dplyr&quot;</span>)
+con &lt;-<span class="st"> </span>dplyr::<span class="kw">src_sqlite</span>(<span class="st">&quot;:memory:&quot;</span>, <span class="dt">create =</span> <span class="ot">TRUE</span>)
+<span class="kw">src_tbls</span>(con) <span class="co"># lists tables in the database</span></code></pre></div>
+<p>We can also insert some practice data:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">iris_handle &lt;-<span class="st"> </span><span class="kw">copy_to</span>(con, iris, <span class="st">&#39;iris&#39;</span>)</code></pre></div></li>
+<li><p>Create a reference to a existing table in the database with <code>tbl()</code></p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">tab &lt;-<span class="st"> </span><span class="kw">tbl</span>(con, <span class="st">&quot;iris&quot;</span>)</code></pre></div></li>
+<li><p>Manipulate the table reference with common dplyr functions, and basic R operations.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">tab %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">filter</span>(Sepal.Length &gt;<span class="st"> </span><span class="dv">1</span>)</code></pre></div>
+<p>Notice operations are identical for local data (such as <code>iris</code>) and remote data (such as <code>tab</code>). This is the big advantage of using <code>SparklyR/dplyr</code>.</p>
+<p><code>r iris %&gt;%    filter(Sepal.Length &gt; 1)</code></p></li>
+<li><p>Collect the full results to R. By default, dplyr will only collect and display the first 10 results to facilitate iteration.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">tab %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">group_by</span>(Species) %&gt;%
+<span class="st">  </span><span class="kw">summarize_all</span>(<span class="kw">funs</span>(<span class="dt">avg=</span> mean)) %&gt;%
+<span class="st">  </span><span class="kw">collect</span>()</code></pre></div></li>
+<li><p>Close the connection by deleting our table, removing the connection object and running the garbage collector with <code>gc()</code></p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">dplyr::<span class="kw">db_drop_table</span>(con$con, <span class="st">&#39;iris&#39;</span>)
+<span class="kw">rm</span>(<span class="dt">list=</span><span class="st">&#39;con&#39;</span>)
+<span class="kw">gc</span>()</code></pre></div></li>
+</ol>
+<p>dplyr will automatically translate your R code to SQL to execute on the database using the specified driver. dplyr implements several features to ensure a fast experience. dplyr:</p>
+<ol class="incremental" style="list-style-type: decimal">
+<li>relies on lazy evaluation, evaluating the SQL query only when necessary</li>
+<li>optimizes the entire SQL query before running it against the database</li>
+<li>Only retrieves the first ten rows of results to display in R. Use <code>collect()</code> to import the entire set of results into R for saving as an R object.</li>
+</ol>
+<h1 id="airlines-database">Airlines database</h1>
+<p>The airlines database sample is from <code>nycflights13</code> documentation is available via:</p>
+<pre><code>````r
+help(package=&#39;nycflights13&#39;)
+````</code></pre>
+<hr />
+<p><strong>Exercise 1</strong>: <em>The first code chunk below uses a dplyr driver function to open a connection to the Airlines database. Run the chunk.</em></p>
+<p><em>The second code chunk runs your analysis from Part 1 on the full airlines data set (variable and table names have been altered to correspond with the new data set). First we create table references for:</em></p>
+<ol class="incremental" style="list-style-type: decimal">
+<li><em>flights</em></li>
+<li><em>planes</em></li>
+<li><em>airlines</em></li>
+</ol>
+<p><em>Then run the chunk to see which airline used the newest planes.</em></p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># We are using SQLite to simulate a large remote database.</span>
+<span class="co"># This is a great way to try things quickly without a lot </span>
+<span class="co"># of install hassle.</span>
+air &lt;-<span class="st">  </span>dplyr::<span class="kw">src_sqlite</span>(<span class="st">&quot;:memory:&quot;</span>, <span class="dt">create =</span> <span class="ot">TRUE</span>)
+flights &lt;-<span class="st"> </span>dplyr::<span class="kw">copy_to</span>(air, nycflights13::flights, <span class="st">&#39;flights&#39;</span>)
+planes &lt;-<span class="st"> </span>dplyr::<span class="kw">copy_to</span>(air, nycflights13::planes, <span class="st">&#39;planes&#39;</span>)
+airlines &lt;-<span class="st">  </span>dplyr::<span class="kw">copy_to</span>(air, nycflights13::airlines, <span class="st">&#39;airlines&#39;</span>)</code></pre></div>
+<p>Now please compute average construction date of planes by carrier. A good idea is to work out a pipeline that works on local data and then see if it will work on remote data handles.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">flights %&gt;%
+<span class="st">  </span><span class="kw">distinct</span>(., carrier, tailnum) %&gt;%
+<span class="st">  </span><span class="kw">collapse</span>(.) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">left_join</span>(., planes, <span class="dt">by =</span> <span class="st">&quot;tailnum&quot;</span>) %&gt;%
+<span class="st">  </span><span class="kw">group_by</span>(., carrier) %&gt;%
+<span class="st">  </span><span class="kw">summarise</span>(., <span class="dt">avg =</span> <span class="kw">mean</span>(year), <span class="dt">n =</span> <span class="kw">n</span>()) %&gt;%
+<span class="st">  </span><span class="kw">left_join</span>(., airlines, <span class="dt">by =</span> <span class="st">&quot;carrier&quot;</span>) %&gt;%
+<span class="st">  </span><span class="kw">select</span>(., name, avg, n) %&gt;%
+<span class="st">  </span><span class="kw">arrange</span>(., <span class="kw">desc</span>(avg)) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">collect</span>(.) %&gt;%<span class="st"> </span>
+<span class="st">  </span><span class="kw">as.data.frame</span>(.)</code></pre></div>
+<pre><code>##                           name      avg   n
+## 1       Hawaiian Airlines Inc. 2011.769  14
+## 2               Virgin America 2008.712  53
+## 3       Frontier Airlines Inc. 2008.000  26
+## 4         Alaska Airlines Inc. 2007.843  84
+## 5              JetBlue Airways 2006.503 193
+## 6        SkyWest Airlines Inc. 2005.857  28
+## 7            Endeavor Air Inc. 2004.713 204
+## 8           Mesa Airlines Inc. 2003.561  58
+## 9     ExpressJet Airlines Inc. 2002.442 316
+## 10 AirTran Airways Corporation 2002.205 129
+## 11             US Airways Inc. 2002.004 290
+## 12      Southwest Airlines Co. 2001.995 583
+## 13       United Air Lines Inc. 1999.949 621
+## 14        Delta Air Lines Inc. 1995.328 629
+## 15      American Airlines Inc. 1987.598 601
+## 16                   Envoy Air 1977.500 238</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># closes connection</span>
+if (<span class="kw">exists</span>(<span class="st">&quot;air&quot;</span>)) { 
+  <span class="kw">rm</span>(air)
+  <span class="kw">gc</span>()
+}</code></pre></div>
+<pre><code>##           used (Mb) gc trigger  (Mb) max used  (Mb)
+## Ncells  472577 25.3     940480  50.3   750400  40.1
+## Vcells 5736013 43.8   15594024 119.0 15469482 118.1</code></pre>
+<h1 id="further-learning">Further Learning</h1>
+<p>For a more extensive example that includes fitting a model and using the model to score data within the database, read <a href="http://www.rpubs.com/nwstephens/airontime">Analysis of Air On Time Data</a> by Nathan Stephens.</p>
