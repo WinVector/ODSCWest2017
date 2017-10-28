@@ -96,7 +96,7 @@ Also it is critical to look at [Exercises/solutions/RsparklingExample.Rmd](Exerc
 A copy of those note are below (but it is better to look at `RsparklingExample.Rmd`).
 
 
-`h2o` reinstall instructions from error msg.
+`h2o` reinstall instructions from error msg, unfortunately they have not yet cleared the error.
 
 ```{r installh2o, eval=FALSE}
 remove.packages("h2o")
