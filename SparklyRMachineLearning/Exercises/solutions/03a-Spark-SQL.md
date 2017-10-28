@@ -10,7 +10,7 @@ Run the following block to connect to the cluster and copy the flights data usin
 **Caveat:** The flight data in `nycflights13` is convenient for dplyr demonstrations because it is small, but in practice large data should rarely be copied directly from R objects.
 
 ``` r
-sc <- spark_connect(master = "local", version = "2.0.0", hadoop_version="2.7")
+sc <- spark_connect(master = "local")
 flights_tbl <- spark_read_parquet(sc, "flights", "datainputs/nycflights13-parquet/flights")
 airlines_tbl <- copy_to(sc, airlines, "airlines", overwrite = TRUE)
 
@@ -35,30 +35,28 @@ Run the following block to see what all these commands do in Spark.
 select(flights_tbl, year:day, arr_delay, dep_delay)
 ```
 
-    ## Source:   query [3.368e+05 x 5]
-    ## Database: spark connection master=local[4] app=sparklyr local=TRUE
-    ## 
+    ## # Source:   lazy query [?? x 5]
+    ## # Database: spark_connection
     ##     year month   day arr_delay dep_delay
     ##    <int> <int> <int>     <dbl>     <dbl>
-    ## 1   2013     4    26       -32       -10
-    ## 2   2013     4    26        19        21
-    ## 3   2013     4    26       -52        -7
-    ## 4   2013     4    26        -2        -4
-    ## 5   2013     4    26        -2        10
-    ## 6   2013     4    26        38        14
-    ## 7   2013     4    26        33        11
-    ## 8   2013     4    26        72        44
-    ## 9   2013     4    26       -18        -5
+    ##  1  2013     4    26       -32       -10
+    ##  2  2013     4    26        19        21
+    ##  3  2013     4    26       -52        -7
+    ##  4  2013     4    26        -2        -4
+    ##  5  2013     4    26        -2        10
+    ##  6  2013     4    26        38        14
+    ##  7  2013     4    26        33        11
+    ##  8  2013     4    26        72        44
+    ##  9  2013     4    26       -18        -5
     ## 10  2013     4    26         2        -4
-    ## # ... with 3.368e+05 more rows
+    ## # ... with more rows
 
 ``` r
 filter(flights_tbl, dep_delay > 1000)
 ```
 
-    ## Source:   query [5 x 19]
-    ## Database: spark connection master=local[4] app=sparklyr local=TRUE
-    ## 
+    ## # Source:   lazy query [?? x 19]
+    ## # Database: spark_connection
     ##    year month   day dep_time sched_dep_time dep_delay arr_time
     ##   <int> <int> <int>    <int>          <int>     <dbl>    <int>
     ## 1  2013     6    15     1432           1935      1137     1607
@@ -75,33 +73,32 @@ filter(flights_tbl, dep_delay > 1000)
 arrange(flights_tbl, desc(dep_delay))
 ```
 
-    ## Source:   query [3.368e+05 x 19]
-    ## Database: spark connection master=local[4] app=sparklyr local=TRUE
-    ## 
+    ## # Source:     table<flights> [?? x 19]
+    ## # Database:   spark_connection
+    ## # Ordered by: desc(dep_delay)
     ##     year month   day dep_time sched_dep_time dep_delay arr_time
     ##    <int> <int> <int>    <int>          <int>     <dbl>    <int>
-    ## 1   2013     1     9      641            900      1301     1242
-    ## 2   2013     6    15     1432           1935      1137     1607
-    ## 3   2013     1    10     1121           1635      1126     1239
-    ## 4   2013     9    20     1139           1845      1014     1457
-    ## 5   2013     7    22      845           1600      1005     1044
-    ## 6   2013     4    10     1100           1900       960     1342
-    ## 7   2013     3    17     2321            810       911      135
-    ## 8   2013     6    27      959           1900       899     1236
-    ## 9   2013     7    22     2257            759       898      121
+    ##  1  2013     1     9      641            900      1301     1242
+    ##  2  2013     6    15     1432           1935      1137     1607
+    ##  3  2013     1    10     1121           1635      1126     1239
+    ##  4  2013     9    20     1139           1845      1014     1457
+    ##  5  2013     7    22      845           1600      1005     1044
+    ##  6  2013     4    10     1100           1900       960     1342
+    ##  7  2013     3    17     2321            810       911      135
+    ##  8  2013     6    27      959           1900       899     1236
+    ##  9  2013     7    22     2257            759       898      121
     ## 10  2013    12     5      756           1700       896     1058
-    ## # ... with 3.368e+05 more rows, and 12 more variables:
-    ## #   sched_arr_time <int>, arr_delay <dbl>, carrier <chr>, flight <int>,
-    ## #   tailnum <chr>, origin <chr>, dest <chr>, air_time <dbl>,
-    ## #   distance <dbl>, hour <dbl>, minute <dbl>, time_hour <dbl>
+    ## # ... with more rows, and 12 more variables: sched_arr_time <int>,
+    ## #   arr_delay <dbl>, carrier <chr>, flight <int>, tailnum <chr>,
+    ## #   origin <chr>, dest <chr>, air_time <dbl>, distance <dbl>, hour <dbl>,
+    ## #   minute <dbl>, time_hour <dbl>
 
 ``` r
 summarise(flights_tbl, mean_dep_delay = mean(dep_delay))
 ```
 
-    ## Source:   query [1 x 1]
-    ## Database: spark connection master=local[4] app=sparklyr local=TRUE
-    ## 
+    ## # Source:   lazy query [?? x 1]
+    ## # Database: spark_connection
     ##   mean_dep_delay
     ##            <dbl>
     ## 1       12.63907
@@ -110,25 +107,24 @@ summarise(flights_tbl, mean_dep_delay = mean(dep_delay))
 mutate(flights_tbl, speed = distance / air_time * 60)
 ```
 
-    ## Source:   query [3.368e+05 x 20]
-    ## Database: spark connection master=local[4] app=sparklyr local=TRUE
-    ## 
+    ## # Source:   lazy query [?? x 20]
+    ## # Database: spark_connection
     ##     year month   day dep_time sched_dep_time dep_delay arr_time
     ##    <int> <int> <int>    <int>          <int>     <dbl>    <int>
-    ## 1   2013     4    26     1420           1430       -10     1557
-    ## 2   2013     4    26     1420           1359        21     1613
-    ## 3   2013     4    26     1423           1430        -7     1753
-    ## 4   2013     4    26     1425           1429        -4     1741
-    ## 5   2013     4    26     1425           1415        10     1525
-    ## 6   2013     4    26     1426           1412        14     1713
-    ## 7   2013     4    26     1426           1415        11     1628
-    ## 8   2013     4    26     1429           1345        44     1617
-    ## 9   2013     4    26     1430           1435        -5     1553
+    ##  1  2013     4    26     1420           1430       -10     1557
+    ##  2  2013     4    26     1420           1359        21     1613
+    ##  3  2013     4    26     1423           1430        -7     1753
+    ##  4  2013     4    26     1425           1429        -4     1741
+    ##  5  2013     4    26     1425           1415        10     1525
+    ##  6  2013     4    26     1426           1412        14     1713
+    ##  7  2013     4    26     1426           1415        11     1628
+    ##  8  2013     4    26     1429           1345        44     1617
+    ##  9  2013     4    26     1430           1435        -5     1553
     ## 10  2013     4    26     1431           1435        -4     1646
-    ## # ... with 3.368e+05 more rows, and 13 more variables:
-    ## #   sched_arr_time <int>, arr_delay <dbl>, carrier <chr>, flight <int>,
-    ## #   tailnum <chr>, origin <chr>, dest <chr>, air_time <dbl>,
-    ## #   distance <dbl>, hour <dbl>, minute <dbl>, time_hour <dbl>, speed <dbl>
+    ## # ... with more rows, and 13 more variables: sched_arr_time <int>,
+    ## #   arr_delay <dbl>, carrier <chr>, flight <int>, tailnum <chr>,
+    ## #   origin <chr>, dest <chr>, air_time <dbl>, distance <dbl>, hour <dbl>,
+    ## #   minute <dbl>, time_hour <dbl>, speed <dbl>
 
 ### Preprocess
 
@@ -157,15 +153,14 @@ c4 %>%
   summarize(count = n(), mean_dep_delay = mean(dep_delay)) 
 ```
 
-    ## Source:   query [4 x 3]
-    ## Database: spark connection master=local[4] app=sparklyr local=TRUE
-    ## 
+    ## # Source:   lazy query [?? x 3]
+    ## # Database: spark_connection
     ##   carrier count mean_dep_delay
     ##     <chr> <dbl>          <dbl>
-    ## 1      AA    94       1.468085
+    ## 1      WN    34       7.970588
     ## 2      DL   136       6.235294
     ## 3      UA   172       9.633721
-    ## 4      WN    34       7.970588
+    ## 4      AA    94       1.468085
 
 ### Collecting to R : Example use
 
@@ -213,28 +208,27 @@ bestworst <- flights_tbl %>%
 show_query(bestworst)
 ## <SQL>
 ## SELECT `year`, `month`, `day`, `dep_delay`
-## FROM (SELECT `year`, `month`, `day`, `dep_delay`, min(`dep_delay`) OVER (PARTITION BY `year`, `month`, `day`) AS `zzz4`, max(`dep_delay`) OVER (PARTITION BY `year`, `month`, `day`) AS `zzz5`
+## FROM (SELECT `year`, `month`, `day`, `dep_delay`, min(`dep_delay`) OVER (PARTITION BY `year`, `month`, `day`) AS `zzz5`, max(`dep_delay`) OVER (PARTITION BY `year`, `month`, `day`) AS `zzz6`
 ## FROM (SELECT `year` AS `year`, `month` AS `month`, `day` AS `day`, `dep_delay` AS `dep_delay`
-## FROM `flights`) `gdqhuralea`) `fbmlpgwwtk`
-## WHERE (`dep_delay` = `zzz4` OR `dep_delay` = `zzz5`)
+## FROM `flights`) `hgsorzmdxq`) `abbwbkrtqo`
+## WHERE (`dep_delay` = `zzz5` OR `dep_delay` = `zzz6`)
 bestworst
-## Source:   query [824 x 4]
-## Database: spark connection master=local[4] app=sparklyr local=TRUE
-## Groups: year, month, day
-## 
+## # Source:   lazy query [?? x 4]
+## # Database: spark_connection
+## # Groups:   year, month, day
 ##     year month   day dep_delay
 ##    <int> <int> <int>     <dbl>
-## 1   2013     1     1       853
-## 2   2013     1     1       -15
-## 3   2013     1     1       -15
-## 4   2013     1     9      1301
-## 5   2013     1     9       -17
-## 6   2013     1    14       -20
-## 7   2013     1    14       334
-## 8   2013     1    23       -18
-## 9   2013     1    23       478
+##  1  2013     1     1       853
+##  2  2013     1     1       -15
+##  3  2013     1     1       -15
+##  4  2013     1     9      1301
+##  5  2013     1     9       -17
+##  6  2013     1    14       -20
+##  7  2013     1    14       334
+##  8  2013     1    23       -18
+##  9  2013     1    23       478
 ## 10  2013     1    24       -15
-## # ... with 814 more rows
+## # ... with more rows
 ```
 
 ``` r
@@ -249,29 +243,28 @@ show_query(ranked)
     ## <SQL>
     ## SELECT `year`, `month`, `day`, `dep_delay`, rank() OVER (PARTITION BY `year`, `month`, `day` ORDER BY `dep_delay` DESC) AS `rank`
     ## FROM (SELECT `year` AS `year`, `month` AS `month`, `day` AS `day`, `dep_delay` AS `dep_delay`
-    ## FROM `flights`) `tcrrrtnofg`
+    ## FROM `flights`) `dmqofrgyje`
 
 ``` r
 ranked
 ```
 
-    ## Source:   query [3.368e+05 x 5]
-    ## Database: spark connection master=local[4] app=sparklyr local=TRUE
-    ## Groups: year, month, day
-    ## 
+    ## # Source:   lazy query [?? x 5]
+    ## # Database: spark_connection
+    ## # Groups:   year, month, day
     ##     year month   day dep_delay  rank
     ##    <int> <int> <int>     <dbl> <int>
-    ## 1   2013     1     1       853     1
-    ## 2   2013     1     1       379     2
-    ## 3   2013     1     1       290     3
-    ## 4   2013     1     1       285     4
-    ## 5   2013     1     1       260     5
-    ## 6   2013     1     1       255     6
-    ## 7   2013     1     1       216     7
-    ## 8   2013     1     1       192     8
-    ## 9   2013     1     1       157     9
+    ##  1  2013     1     1       853     1
+    ##  2  2013     1     1       379     2
+    ##  3  2013     1     1       290     3
+    ##  4  2013     1     1       285     4
+    ##  5  2013     1     1       260     5
+    ##  6  2013     1     1       255     6
+    ##  7  2013     1     1       216     7
+    ##  8  2013     1     1       192     8
+    ##  9  2013     1     1       157     9
     ## 10  2013     1     1       155    10
-    ## # ... with 3.368e+05 more rows
+    ## # ... with more rows
 
 ### Sampling
 
@@ -314,22 +307,21 @@ This will write the Spark DataFrame referenced by the tbl R variable to the give
 spark_read_parquet(sc, "data", "data/nycflights13-parquet/flights")
 ```
 
-    ## Source:   query [3.368e+05 x 19]
-    ## Database: spark connection master=local[4] app=sparklyr local=TRUE
-    ## 
+    ## # Source:   table<data> [?? x 19]
+    ## # Database: spark_connection
     ##     year month   day dep_time sched_dep_time dep_delay arr_time
     ##    <int> <int> <int>    <int>          <int>     <dbl>    <int>
-    ## 1   2013     4    26     1420           1430       -10     1557
-    ## 2   2013     4    26     1420           1359        21     1613
-    ## 3   2013     4    26     1423           1430        -7     1753
-    ## 4   2013     4    26     1425           1429        -4     1741
-    ## 5   2013     4    26     1425           1415        10     1525
-    ## 6   2013     4    26     1426           1412        14     1713
-    ## 7   2013     4    26     1426           1415        11     1628
-    ## 8   2013     4    26     1429           1345        44     1617
-    ## 9   2013     4    26     1430           1435        -5     1553
+    ##  1  2013     4    26     1420           1430       -10     1557
+    ##  2  2013     4    26     1420           1359        21     1613
+    ##  3  2013     4    26     1423           1430        -7     1753
+    ##  4  2013     4    26     1425           1429        -4     1741
+    ##  5  2013     4    26     1425           1415        10     1525
+    ##  6  2013     4    26     1426           1412        14     1713
+    ##  7  2013     4    26     1426           1415        11     1628
+    ##  8  2013     4    26     1429           1345        44     1617
+    ##  9  2013     4    26     1430           1435        -5     1553
     ## 10  2013     4    26     1431           1435        -4     1646
-    ## # ... with 3.368e+05 more rows, and 12 more variables:
-    ## #   sched_arr_time <int>, arr_delay <dbl>, carrier <chr>, flight <int>,
-    ## #   tailnum <chr>, origin <chr>, dest <chr>, air_time <dbl>,
-    ## #   distance <dbl>, hour <dbl>, minute <dbl>, time_hour <dbl>
+    ## # ... with more rows, and 12 more variables: sched_arr_time <int>,
+    ## #   arr_delay <dbl>, carrier <chr>, flight <int>, tailnum <chr>,
+    ## #   origin <chr>, dest <chr>, air_time <dbl>, distance <dbl>, hour <dbl>,
+    ## #   minute <dbl>, time_hour <dbl>

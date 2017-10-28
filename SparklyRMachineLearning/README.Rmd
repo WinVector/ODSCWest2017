@@ -96,23 +96,12 @@ Also it is critical to look at [Exercises/solutions/RsparklingExample.Rmd](Exerc
 A copy of those note are below (but it is better to look at `RsparklingExample.Rmd`).
 
 
-TODO: check if we can get away without the following re-install (will sparkling just work off the CRAN version).
+`h2o` reinstall instructions from error msg.
 
 ```{r installh2o, eval=FALSE}
-# updated from https://gist.github.com/edgararuiz/6453d44a91c85a87998cfeb0dfed9fa9
-# The following two commands remove any previously installed H2O packages for R.
-if ("package:h2o" %in% search()) { detach("package:h2o", unload=TRUE) }
-if ("h2o" %in% rownames(installed.packages())) { remove.packages("h2o") }
-
-# Now we download, install and initialize the H2O package for R.
-install.packages("h2o", type = "source", repos = "http://h2o-release.s3.amazonaws.com/h2o/rel-turnbull/2/R")
-
-# Installing 'rsparkling' from CRAN
-install.packages("rsparkling")
-options(rsparkling.sparklingwater.version = "2.0.3")
-# Reinstalling 'sparklyr' 
-install.packages("sparklyr")
-sparklyr::spark_install(version = "2.0.0")
+remove.packages("h2o")
+install.packages("h2o", type = "source", repos = "https://h2o-release.s3.amazonaws.com/h2o/rel-weierstrass/2/R")
+devtools::install_github("h2oai/rsparkling")
 ```
 
 Note: please note using `dplyr::compute()` (or `sparklyr::sdf_checkpoint()`) with `sparklyr` can have issues (see [sparklyr issue 721](https://github.com/rstudio/sparklyr/issues/721)).

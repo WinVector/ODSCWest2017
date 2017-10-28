@@ -38,7 +38,7 @@ Parquet is a column based data format that is also compressed. It is a format of
 
 ```{r data, message=FALSE, warning=FALSE}
 # Connect to local spark cluster and load data
-sc <- spark_connect(master = "local", version = "2.0.0")
+sc <- spark_connect(master = "local")
 spark_read_parquet(sc, name = "titanic", path = "datainputs/titanic-parquet")
 titanic_tbl <- tbl(sc, "titanic")
 ```

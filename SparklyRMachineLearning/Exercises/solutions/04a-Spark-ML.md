@@ -19,7 +19,7 @@ Parquet is a column based data format that is also compressed. It is a format of
 
 ``` r
 # Connect to local spark cluster and load data
-sc <- spark_connect(master = "local", version = "2.0.0")
+sc <- spark_connect(master = "local")
 spark_read_parquet(sc, name = "titanic", path = "datainputs/titanic-parquet")
 ```
 
@@ -37,7 +37,7 @@ spark_read_parquet(sc, name = "titanic", path = "datainputs/titanic-parquet")
     ##  8           8        0      3
     ##  9           9        1      3
     ## 10          10        1      2
-    ## # ... with 881 more rows, and 9 more variables: Name <chr>, Sex <chr>,
+    ## # ... with more rows, and 9 more variables: Name <chr>, Sex <chr>,
     ## #   Age <dbl>, SibSp <int>, Parch <int>, Ticket <chr>, Fare <dbl>,
     ## #   Cabin <chr>, Embarked <chr>
 
@@ -138,11 +138,11 @@ ml_formula <- formula(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Emb
     ## 
     ## Coefficients:
     ##    (Intercept)       Pclass_2       Pclass_3       Sex_male            Age 
-    ##    3.770024202   -1.001174014   -2.077589828   -2.674074995   -0.041217932 
+    ##   3.7701596246  -1.0012118315  -2.0776479561  -2.6740713977  -0.0412193174 
     ##          SibSp          Parch           Fare     Embarked_Q     Embarked_S 
-    ##   -0.056016163    0.162832732    0.000293634    0.363901651   -0.101122063 
+    ##  -0.0560113619   0.1628399176   0.0002930454   0.3638779011  -0.1011644722 
     ## Family_Sizes_1 Family_Sizes_2 
-    ##    0.141765426   -1.826757360
+    ##   0.1417538627  -1.8267676504
 
 Other ML algorithms
 -------------------
@@ -294,7 +294,7 @@ ml_logistic
     ##  8        0          0   <dbl [2]>
     ##  9        0          0   <dbl [2]>
     ## 10        0          0   <dbl [2]>
-    ## # ... with 209 more rows
+    ## # ... with more rows
 
 ``` r
 # Let's take a "sample" of ml_logistic to bring over. This data happens to

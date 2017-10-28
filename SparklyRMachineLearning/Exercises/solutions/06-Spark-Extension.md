@@ -1,7 +1,5 @@
 This is only a concept script, it runs correctly but is intended for teaching not direct use in production.
 
-At some point the `SparkR:dapply()` functionality we are working to capture here will be available as a method called [`sparklyr::spark_apply()`](https://github.com/rstudio/sparklyr/pull/728).
-
 One point in particular is this script assumes none of the following directories are present (as it is going to try to create them and write its own temp results):
 
 -   Exercises/solutions/df\*\_tmp
@@ -157,7 +155,7 @@ glimpse(dfR)
 print(dfR)
 ```
 
-    ## # Source:   table<sparklyr_tmp_e2a978c4db8f> [?? x 4]
+    ## # Source:   table<sparklyr_tmp_132ae2a7a8429> [?? x 4]
     ## # Database: spark_connection
     ##                                                                         x
     ##                                                                     <chr>
@@ -203,7 +201,7 @@ print(billionBigInteger)
 str(billionBigInteger)
 ```
 
-    ## Classes 'spark_jobj', 'shell_jobj' <environment: 0x7fbead9b5d80>
+    ## Classes 'spark_jobj', 'shell_jobj' <environment: 0x7fe678dfa068>
 
 ``` r
 billion <- invoke(billionBigInteger, "longValue")

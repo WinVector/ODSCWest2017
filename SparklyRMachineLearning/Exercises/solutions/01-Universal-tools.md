@@ -69,7 +69,7 @@ iris4 <- filter(iris3, diff == max(diff))
 select(iris4, Species, avg_width, avg_length)
 ```
 
-    ## # A tibble: 1 × 3
+    ## # A tibble: 1 x 3
     ##     Species avg_width avg_length
     ##      <fctr>     <dbl>      <dbl>
     ## 1 virginica     2.026      5.552
@@ -112,7 +112,7 @@ iris %>%
   select(-diff)
 ```
 
-    ## # A tibble: 1 × 3
+    ## # A tibble: 1 x 3
     ##     Species avg_width avg_length
     ##      <fctr>     <dbl>      <dbl>
     ## 1 virginica     2.026      5.552
@@ -173,7 +173,7 @@ instrument <-
 inner_join(band, instrument, by = "name")
 ```
 
-    ## # A tibble: 2 × 5
+    ## # A tibble: 2 x 5
     ##    name    band region.x  plays region.y
     ##   <chr>   <chr>    <chr>  <chr>    <chr>
     ## 1  John Beatles       UK guitar       UK
@@ -186,7 +186,7 @@ Extra credit, explain what happens if there are duplicate keys in one or more ta
 inner_join(band, instrument, by = "region")
 ```
 
-    ## # A tibble: 9 × 5
+    ## # A tibble: 9 x 5
     ##   name.x    band region name.y  plays
     ##    <chr>   <chr>  <chr>  <chr>  <chr>
     ## 1   Mick  Stones     UK   John guitar
@@ -244,18 +244,18 @@ flights %>%
 print(answer)
 ```
 
-    ## # A tibble: 16 × 4
+    ## # A tibble: 16 x 4
     ##                           name      avg     n   nas
     ##                          <chr>    <dbl> <int> <int>
-    ## 1       Hawaiian Airlines Inc. 2011.769    14     1
-    ## 2               Virgin America 2008.712    53     1
-    ## 3       Frontier Airlines Inc. 2008.000    26     3
-    ## 4         Alaska Airlines Inc. 2007.843    84     1
-    ## 5              JetBlue Airways 2006.503   193     6
-    ## 6        SkyWest Airlines Inc. 2005.857    28     0
-    ## 7            Endeavor Air Inc. 2004.713   204     2
-    ## 8           Mesa Airlines Inc. 2003.561    58     1
-    ## 9     ExpressJet Airlines Inc. 2002.442   316     8
+    ##  1      Hawaiian Airlines Inc. 2011.769    14     1
+    ##  2              Virgin America 2008.712    53     1
+    ##  3      Frontier Airlines Inc. 2008.000    26     3
+    ##  4        Alaska Airlines Inc. 2007.843    84     1
+    ##  5             JetBlue Airways 2006.503   193     6
+    ##  6       SkyWest Airlines Inc. 2005.857    28     0
+    ##  7           Endeavor Air Inc. 2004.713   204     2
+    ##  8          Mesa Airlines Inc. 2003.561    58     1
+    ##  9    ExpressJet Airlines Inc. 2002.442   316     8
     ## 10 AirTran Airways Corporation 2002.205   129    17
     ## 11             US Airways Inc. 2002.004   290    21
     ## 12      Southwest Airlines Co. 2001.995   583    14
@@ -274,8 +274,8 @@ print(xtable(answer),
       include.rownames = FALSE)
 ```
 
-<!-- html table generated in R 3.3.3 by xtable 1.8-2 package -->
-<!-- Thu Mar 23 08:17:10 2017 -->
+<!-- html table generated in R 3.4.2 by xtable 1.8-2 package -->
+<!-- Sat Oct 28 07:18:36 2017 -->
 <table border="1">
 <tr>
 <th>

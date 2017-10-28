@@ -2,7 +2,9 @@
 title: 'R with Big Data 3b: Big Data and Spark SQL 2/2'
 author: "Garrett Grolemund, Nathan Stephens, John Mount and Nina Zumel"
 always_allow_html: yes
-output: html_document
+output: 
+  html_document:
+    keep_md: yes
 ---
 
 Use dplyr syntax to write Apache Spark SQL queries. Use select, where, group by, joins, and window functions in Aparche Spark SQL.
@@ -25,7 +27,7 @@ library(rbokeh)
 Install and connect to a local Spark instance. Copy data into Spark DataFrames.
 
 ```{r}
-sc <- spark_connect(master = "local", version = "2.0.0")
+sc <- spark_connect(master = "local")
 babynames_tbl <- copy_to(sc, babynames, "babynames", overwrite = TRUE)
 applicants_tbl <- copy_to(sc, applicants, "applicants", overwrite = TRUE)
 ```

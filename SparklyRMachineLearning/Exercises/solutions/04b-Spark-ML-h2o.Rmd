@@ -7,7 +7,7 @@ output:
 ---
 
 ```{r setup, include = FALSE}
-options(rsparkling.sparklingwater.version = "2.0.3")
+#options(rsparkling.sparklingwater.version = "2.0.3")
 library(sparklyr)
 library(rsparkling) 
 library(dplyr)
@@ -30,7 +30,7 @@ Load the Titanic Parquet data into a local spark cluster.
 
 ```{r data, message=FALSE, warning=FALSE}
 # Connect to local spark cluster and load data
-sc <- spark_connect(master = "local", version = "2.0.0")
+sc <- spark_connect(master = "local")
 spark_read_parquet(sc, name = "titanic", path = "datainputs/titanic-parquet")
 titanic_tbl <- tbl(sc, "titanic")
 ```
@@ -85,7 +85,7 @@ Import the data from Spark to H2O for the machine learning.
 
 ```{r import}
 # Make the h2o context available to spark
-h2o_context(sc)
+h2o_context(sc, strict_version_check = FALSE)
 titanic_h2o <- as_h2o_frame(sc, titanic_final_tbl) 
 class(titanic_h2o)
 h2o.getId(titanic_h2o)
@@ -350,3 +350,7 @@ feature_importance %>%
   ggtitle("Feature Importance")
 ```
 
+```{r cleanup}
+h2o.shutdown()
+spark_disconnect_all()
+```
