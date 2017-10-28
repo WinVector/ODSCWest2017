@@ -73,10 +73,11 @@ dMany  <- copy_to(sc, bind_rows(rep(list(d), 100000)), 'dMany',
 f <- function(df, ...) {
   df$cleaned = as.character(lubridate::ymd_hms(df$x))
   df$nrow <- nrow(df)
+  df$clsstr <- paste(class(df), collapse = ' ')
   df
 }
 dfR <- spark_apply(dMany, f, 
-                   columns = c(colnames(dMany), 'cleaned', 'nrow'))
+                   columns = c(colnames(dMany), 'cleaned', 'nrow', 'clsstr'))
 replyr::replyr_nrow(dMany)
 replyr::replyr_nrow(dfR)
 glimpse(dfR)

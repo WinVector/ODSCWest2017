@@ -120,10 +120,11 @@ dMany  <- copy_to(sc, bind_rows(rep(list(d), 100000)), 'dMany',
 f <- function(df, ...) {
   df$cleaned = as.character(lubridate::ymd_hms(df$x))
   df$nrow <- nrow(df)
+  df$clsstr <- paste(class(df), collapse = ' ')
   df
 }
 dfR <- spark_apply(dMany, f, 
-                   columns = c(colnames(dMany), 'cleaned', 'nrow'))
+                   columns = c(colnames(dMany), 'cleaned', 'nrow', 'clsstr'))
 replyr::replyr_nrow(dMany)
 ```
 
@@ -140,10 +141,11 @@ glimpse(dfR)
 ```
 
     ## Observations: 25
-    ## Variables: 3
+    ## Variables: 4
     ## $ x       <chr> "20100101120101", "2009-01-02 12-01-02", "2009.01.03 1...
     ## $ cleaned <chr> "2010-01-01 12:01:01", "2009-01-02 12:01:02", "2009-01...
     ## $ nrow    <int> 279209, 279209, 279209, 279209, 279209, 279209, 279209...
+    ## $ clsstr  <chr> "data.frame", "data.frame", "data.frame", "data.frame"...
 
 From: <http://spark.rstudio.com/extensions.html>.
 
@@ -166,7 +168,7 @@ billionBigInteger <- invoke_new(sc, "java.math.BigInteger", "1000000000")
 print(billionBigInteger)
 ```
 
-    ## <jobj[169]>
+    ## <jobj[170]>
     ##   class java.math.BigInteger
     ##   1000000000
 
@@ -174,7 +176,7 @@ print(billionBigInteger)
 str(billionBigInteger)
 ```
 
-    ## Classes 'spark_jobj', 'shell_jobj' <environment: 0x7ff475ad5ad8>
+    ## Classes 'spark_jobj', 'shell_jobj' <environment: 0x7fb79bd34a98>
 
 ``` r
 billion <- invoke(billionBigInteger, "longValue")
