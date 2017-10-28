@@ -60,7 +60,7 @@ df2
 ```
 
 
-Using `SparkR` for `R` user defined functions.
+Using `SparkR` for `R` user defined functions.  Replaced by [`sparklyr::spark_apply()`](https://spark.rstudio.com/articles/guides-distributed-r.html) ([wasn't available until Sparklyr 0.6.0](https://github.com/rstudio/sparklyr/blob/master/NEWS.md), [released to CRAN 29-Jul-2017](https://cran.rstudio.com/src/contrib/Archive/sparklyr/)).
 
 The following doesn't always run in a knitr evironment.  And using `SparkR` in production would entail already having the needed R packages installed.
 
