@@ -22,9 +22,11 @@ We don't delete these as we don't want to perform too many (potentially unsafe) 
 
 ```{r setup}
 Sys.setenv(TZ='UTC')
-library("sparklyr")
-library("dplyr")
-sc <- spark_connect(master = "local", version = "2.0.0", hadoop_version="2.7")
+suppressPackageStartupMessages(library("sparklyr"))
+packageVersion("sparklyr")
+suppressPackageStartupMessages(library("dplyr"))
+packageVersion("dplyr")
+sc <- spark_connect(master = "local")
 ```
 
 
@@ -38,7 +40,8 @@ d <- data_frame(x = c(20100101120101, "2009-01-02 12-01-02", "2009.01.03 12:01:0
        "Automatic wday, Thu, detection, 10-01-10 10:01:10 and p format: AM",
        "Created on 10-01-11 at 10:01:11 PM"))
 
-df  <- copy_to(sc, d, 'df')
+df  <- copy_to(sc, d, 'df', 
+               temporary = TRUE, overwrite = TRUE)
 print(df)
 ```
 
@@ -65,33 +68,18 @@ Using `SparkR` for `R` user defined functions.  Replaced by [`sparklyr::spark_ap
 The following doesn't always run in a knitr evironment.  And using `SparkR` in production would entail already having the needed R packages installed.
 
 ```{r sparkr}
-# Connect via SparkR, more notes: https://github.com/apache/spark/tree/master/R
-SPARK_HOME <- sc$spark_home
-# https://github.com/Azure/Azure-MachineLearning-DataScience/blob/master/Misc/KDDCup2016/Code/SparkR/SparkR_sparklyr_NYCTaxi.Rmd
-# http://sbartek.github.io/sparkRInstall/installSparkReasyWay.html
-library(SparkR, lib.loc = paste0(SPARK_HOME, "/R/lib/"))
-sr <- sparkR.session(master = "local", sparkHome = SPARK_HOME)
-
-sparklyr::spark_write_parquet(df, 'df_tmp')
-dSparkR <- SparkR::read.df('df_tmp')
-# http://spark.apache.org/docs/latest/sparkr.html
-schema <- structType(structField("dateStrOrig", "string"), 
-                     structField("dateStrNorm", "timestamp"),
-                     structField("dateSec", "double"))
-dSparkR2 <- SparkR::dapply(dSparkR, function(x) {
-  if(!require('lubridate', quietly = TRUE)) {
-    install.packages("lubridate", repos= "http://cran.rstudio.com")
-  }
-  s <- lubridate::ymd_hms(x[[1]])
-  x <- cbind(x, s, as.numeric(s))
-  x
-  }, schema)
-SparkR::write.df(dSparkR2, 'dfR_tmp')
-dfR <- sparklyr::spark_read_parquet(sc, 'dfR', 'dfR_tmp')
-dfR <- dfR %>% 
-  dplyr::mutate(dt = from_unixtime(dateSec)) %>%
-  dplyr::select(dateStrNorm, dateSec, dt)
-print(dfR)
+dMany  <- copy_to(sc, bind_rows(rep(list(d), 100000)), 'dMany', 
+                  temporary = TRUE, overwrite = TRUE)
+f <- function(df, ...) {
+  df$cleaned = as.character(lubridate::ymd_hms(df$x))
+  df$nrow <- nrow(df)
+  df
+}
+dfR <- spark_apply(dMany, f, 
+                   columns = c(colnames(dMany), 'cleaned', 'nrow'))
+replyr::replyr_nrow(dMany)
+replyr::replyr_nrow(dfR)
+glimpse(dfR)
 ```
 
 
@@ -118,6 +106,10 @@ str(billionBigInteger)
 
 billion <- invoke(billionBigInteger, "longValue")
 str(billion)
+```
+
+```{r cleanup}
+spark_disconnect(sc)
 ```
 
 
