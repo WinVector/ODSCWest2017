@@ -80,7 +80,9 @@ dfR <- spark_apply(dMany, f,
                    columns = c(colnames(dMany), 'cleaned', 'nrow', 'clsstr'))
 replyr::replyr_nrow(dMany)
 replyr::replyr_nrow(dfR)
+class(dfR)
 glimpse(dfR)
+print(dfR)
 ```
 
 

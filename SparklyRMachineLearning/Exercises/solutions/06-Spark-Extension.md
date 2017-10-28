@@ -137,6 +137,12 @@ replyr::replyr_nrow(dfR)
     ## [1] 1e+06
 
 ``` r
+class(dfR)
+```
+
+    ## [1] "tbl_spark" "tbl_sql"   "tbl_lazy"  "tbl"
+
+``` r
 glimpse(dfR)
 ```
 
@@ -146,6 +152,27 @@ glimpse(dfR)
     ## $ cleaned <chr> "2010-01-01 12:01:01", "2009-01-02 12:01:02", "2009-01...
     ## $ nrow    <int> 279209, 279209, 279209, 279209, 279209, 279209, 279209...
     ## $ clsstr  <chr> "data.frame", "data.frame", "data.frame", "data.frame"...
+
+``` r
+print(dfR)
+```
+
+    ## # Source:   table<sparklyr_tmp_e2a978c4db8f> [?? x 4]
+    ## # Database: spark_connection
+    ##                                                                         x
+    ##                                                                     <chr>
+    ##  1                                                         20100101120101
+    ##  2                                                    2009-01-02 12-01-02
+    ##  3                                                    2009.01.03 12:01:03
+    ##  4                                                        2009-1-4 12-1-4
+    ##  5                                                      2009-1, 5 12:1, 5
+    ##  6                                                      200901-08 1201-08
+    ##  7             2009 arbitrary 1 non-decimal 6 chars 12 in between 1 !!! 6
+    ##  8 OR collapsed formats: 20090107 120107 (as long as prefixed with zeros)
+    ##  9     Automatic wday, Thu, detection, 10-01-10 10:01:10 and p format: AM
+    ## 10                                     Created on 10-01-11 at 10:01:11 PM
+    ## # ... with more rows, and 3 more variables: cleaned <chr>, nrow <int>,
+    ## #   clsstr <chr>
 
 From: <http://spark.rstudio.com/extensions.html>.
 
@@ -168,7 +195,7 @@ billionBigInteger <- invoke_new(sc, "java.math.BigInteger", "1000000000")
 print(billionBigInteger)
 ```
 
-    ## <jobj[170]>
+    ## <jobj[175]>
     ##   class java.math.BigInteger
     ##   1000000000
 
@@ -176,7 +203,7 @@ print(billionBigInteger)
 str(billionBigInteger)
 ```
 
-    ## Classes 'spark_jobj', 'shell_jobj' <environment: 0x7fb79bd34a98>
+    ## Classes 'spark_jobj', 'shell_jobj' <environment: 0x7fbead9b5d80>
 
 ``` r
 billion <- invoke(billionBigInteger, "longValue")
