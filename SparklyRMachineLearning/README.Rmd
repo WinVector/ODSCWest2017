@@ -61,20 +61,18 @@ Public repository is: [https://github.com/WinVector/BigDataRStrata2017](https://
 
 
 ```{r uptodate, eval=FALSE}
+# often a good idea, though try "n" to build source
 update.packages(ask = FALSE, checkBuilt = TRUE)
 ```
  
 Current list of CRAN packages used:
 
 ```{r cranpackges, eval=FALSE}
-# often a good idea, though try "n" to build source
-# may interfere with us pinning h2o to a specific version
-# update.packages(ask=FALSE) 
 cranpkgs <- c(
   'DBI', 'RCurl', 'RSQLite', 'WVPlots', 'babynames', 'caret', 'cdata',
   'dbplyr', 'devtools', 'dplyr', 'dygraphs', 'e1071', 'formatR',
-  'ggplot2', 'h2o', 'jsonlite', 'lubridate', 
-  'nycflights13', 'plotly', 'rbokeh', 'replyr', 'rsparkling', 'sigr',
+  'ggplot2',  'jsonlite', 'lubridate', 
+  'nycflights13', 'plotly', 'rbokeh', 'replyr', 'sigr',
   'sparklyr', 'statmod', 'tidyr', 'tidyverse', 'titanic',
   'xtable' )
 install.packages(cranpkgs)
@@ -91,18 +89,7 @@ for(pkgi in devpkgs) {
 ```
 
 
-Also it is critical to look at [Exercises/solutions/RsparklingExample.Rmd](Exercises/solutions/RsparklingExample.Rmd) as it installs and configures some packages.  A refresh of all packages will break the matching version numbers required by `h2o` and `rsparkling`.  So please work through the details in `RsparklingExample.Rmd` after updating and installing all the above packages.
 
-A copy of those note are below (but it is better to look at `RsparklingExample.Rmd`).
-
-
-`h2o` reinstall instructions from error msg, unfortunately they have not yet cleared the error.
-
-```{r installh2o, eval=FALSE}
-remove.packages("h2o")
-install.packages("h2o", type = "source", repos = "https://h2o-release.s3.amazonaws.com/h2o/rel-weierstrass/2/R")
-devtools::install_github("h2oai/rsparkling")
-```
 
 Note: please note using `dplyr::compute()` (or `sparklyr::sdf_checkpoint()`) with `sparklyr` can have issues (see [sparklyr issue 721](https://github.com/rstudio/sparklyr/issues/721)).
 
