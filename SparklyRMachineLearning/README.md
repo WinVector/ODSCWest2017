@@ -63,8 +63,7 @@ sparklyr::spark_install(version = "2.2.0", hadoop_version = "2.7")
 
 ``` r
 devpkgs <- c(
-  'RStudio/EDAWR',
-  'WinVector/replyr')
+  'RStudio/EDAWR' )
 for(pkgi in devpkgs) {
   devtools::install_github(pkgi)
 }
