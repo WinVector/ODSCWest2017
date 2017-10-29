@@ -1,1 +1,1 @@
-Content to come.
+Slides for the ODSC West 2017 talk "Myths of Data Science: Things you Should and Should not Believe"
