@@ -2,7 +2,7 @@
 
 Win-Vector LLC ODSC West 2017 presentation materials.
 
-No downloads are materials materials are required for either talk.  Please bring a laptop to the workshop you can work examples and exercises (using a remote server supplied by RStudio Inc.).
+No downloads are materials materials are required for either talk.  Please bring a network connected laptop to the workshop you can work examples and exercises (using a remote server supplied by RStudio Inc.).
 
   * Thursday Nov 2 2017, 2:00 PM, Room T2.
            
